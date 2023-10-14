@@ -44,3 +44,19 @@ def read_MoGCN_data(paths):
         ), "Sample IDs are not consistent between different omics data"
 
     return omics_data
+
+
+def setup_seed(seed):
+    """
+    setup seed to make the experiments deterministic
+
+    Parameters:
+        seed(int) -- the random seed
+
+    @source https://github.com/zhangxiaoyu11/OmiEmbed
+    """
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True

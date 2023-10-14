@@ -2,6 +2,8 @@ GDC/
 OmiEmbed/
 MoGCN/
 prototype/data
+prototype/model
+prototype/result
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

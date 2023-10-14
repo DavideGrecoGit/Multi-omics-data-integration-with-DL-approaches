@@ -18,36 +18,41 @@ class MoGCN_Dataset(Dataset):
 
     def __init__(
         self,
-        path_1="data/fpkm_data.csv",  # RNA-seq
-        path_2="data/gistic_data.csv",  # CNV
-        path_3="data/rppa_data.csv",  # RPPA
-        path_gt_samples="data/sample_classes.csv",  # GT labels
-        path_list_samples="data/train_samples.csv",
+        omics_data,
+        gt_labels,
+        path_list_samples,
     ):
         # Read and filter omics data
-        self.omics_data = read_MoGCN_data([path_1, path_2, path_3])
         self.omics_data = [
-            filter_MoGCN_data(omics, path_list_samples).reset_index(drop=True)
-            for omics in self.omics_data
+            filter_MoGCN_data(omics, path_list_samples) for omics in omics_data
         ]
-        # Store features dimensions of each omics
-        self.input_dims = [omics.shape[1] for omics in self.omics_data]
+
+        # Store features dimensions of each omics.
+        # Note: -1 is required to remove the 'Sample' column from the count
+        self.input_dims = [omics.shape[1] - 1 for omics in self.omics_data]
+
+        # Convert omics_data to Tensor
+        self.omics_data = [
+            torch.tensor(
+                omics.loc[:, omics.columns != "Sample"].values, dtype=torch.float
+            )
+            for omics in omics_data
+        ]
 
         # Read and filter GT data
-        self.gt_labels = read_MoGCN_data([path_gt_samples])[0]
-        self.gt_labels = filter_MoGCN_data(
-            self.gt_labels, path_list_samples
-        ).reset_index(drop=True)
+        self.gt_labels = filter_MoGCN_data(gt_labels, path_list_samples)
+        # Convert gt_labels to Tensor
+        self.labels = torch.tensor(
+            self.gt_labels.loc[:, self.gt_labels.columns == "class"].values,
+            dtype=torch.float,
+        )
 
     def __len__(self):
-        return self.gt_labels.shape[0]
+        return self.labels.size()[0]
 
     def __getitem__(self, idx):
-        items = [
-            torch.Tensor(omics.loc[idx, omics.columns != "Sample"])
-            for omics in self.omics_data
-        ]
+        items = [omics[idx, :] for omics in self.omics_data]
 
-        label = torch.Tensor(self.gt_labels.loc[idx, self.gt_labels.columns == "class"])
+        label = self.labels[idx, :]
 
         return items, label

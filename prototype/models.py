@@ -3,51 +3,84 @@ import torch.nn.functional as F
 from torch import nn
 from matplotlib import pyplot as plt
 import functools
+from abc import ABC, abstractmethod
 
 
-class MMAE(nn.Module):
-    # @Time    : 2021/8/7 14:01
-    # @Author  : Li Xiao
-    # @File    : autoencoder_model.py
+class BaseModel(ABC, nn.Module):
+    def __init__(self, name):
+        super(BaseModel, self).__init__()
 
-    def __init__(self, in_feas_dim, latent_dim=100, a=0.4, b=0.3, c=0.3):
-        """
-        :param in_feas_dim: a list, input dims of omics data
-        :param latent_dim: dim of latent layer
-        :param a: weight of omics data type 1
-        :param b: weight of omics data type 2
-        :param c: weight of omics data type 3
-        """
-        super(MMAE, self).__init__()
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.name = name
+
+    @abstractmethod
+    def forward(self):
+        pass
+
+    @abstractmethod
+    def forward_pass(self, x_omics, loss_fn):
+        pass
+
+    def get_latent_space(self, x_omics, loss_fn):
+        pass
+
+
+class MoGCN_AE(BaseModel):
+    """
+    Implementation of the paper MoGCN: A Multi-Omics Integration Method Based on
+    Graph Convolutional Network for Cancer Subtype Analysis
+
+    @doi: 10.3389/fgene.2022.806842
+    """
+
+    def __init__(
+        self,
+        input_dims,
+        name="MoGCN_AE",
+        activation_fn=nn.Sigmoid(),
+        latent_dim=100,
+        a=0.4,
+        b=0.3,
+        c=0.3,
+    ):
+        super().__init__(name)
+
+        self.activation_fn = activation_fn
+        self.input_dims = input_dims
+        self.latent_dim = latent_dim
         self.a = a
         self.b = b
         self.c = c
-        self.in_feas = in_feas_dim
-        self.latent = latent_dim
 
         # encoders, multi channel input
         self.encoder_omics_1 = nn.Sequential(
-            nn.Linear(self.in_feas[0], self.latent),
-            nn.BatchNorm1d(self.latent),
-            nn.Sigmoid(),
+            nn.Linear(self.input_dims[0], self.latent_dim),
+            nn.BatchNorm1d(self.latent_dim),
+            self.activation_fn,
         )
         self.encoder_omics_2 = nn.Sequential(
-            nn.Linear(self.in_feas[1], self.latent),
-            nn.BatchNorm1d(self.latent),
-            nn.Sigmoid(),
+            nn.Linear(self.input_dims[1], self.latent_dim),
+            nn.BatchNorm1d(self.latent_dim),
+            self.activation_fn,
         )
         self.encoder_omics_3 = nn.Sequential(
-            nn.Linear(self.in_feas[2], self.latent),
-            nn.BatchNorm1d(self.latent),
-            nn.Sigmoid(),
+            nn.Linear(self.input_dims[2], self.latent_dim),
+            nn.BatchNorm1d(self.latent_dim),
+            self.activation_fn,
         )
         # decoders
-        self.decoder_omics_1 = nn.Sequential(nn.Linear(self.latent, self.in_feas[0]))
-        self.decoder_omics_2 = nn.Sequential(nn.Linear(self.latent, self.in_feas[1]))
-        self.decoder_omics_3 = nn.Sequential(nn.Linear(self.latent, self.in_feas[2]))
+        self.decoder_omics_1 = nn.Sequential(
+            nn.Linear(self.latent_dim, self.input_dims[0])
+        )
+        self.decoder_omics_2 = nn.Sequential(
+            nn.Linear(self.latent_dim, self.input_dims[1])
+        )
+        self.decoder_omics_3 = nn.Sequential(
+            nn.Linear(self.latent_dim, self.input_dims[2])
+        )
 
         # Variable initialization
-        for name, param in MMAE.named_parameters(self):
+        for name, param in MoGCN_AE.named_parameters(self):
             if "weight" in name:
                 torch.nn.init.normal_(param, mean=0, std=0.1)
             if "bias" in name:
@@ -70,83 +103,32 @@ class MMAE(nn.Module):
         decoded_omics_1 = self.decoder_omics_1(latent_data)
         decoded_omics_2 = self.decoder_omics_2(latent_data)
         decoded_omics_3 = self.decoder_omics_3(latent_data)
+
         return latent_data, decoded_omics_1, decoded_omics_2, decoded_omics_3
 
-    def __str__(self):
-        return "MMAE"
+    def forward_pass(self, x_omics, loss_fn):
+        omics_1 = x_omics[0].to(self.device)
+        omics_2 = x_omics[1].to(self.device)
+        omics_3 = x_omics[2].to(self.device)
 
-    def train_loop(self, train_loader, optimizer, loss_fn, num_epochs=100):
-        DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        loss_ls = []
+        latent_data, decoded_omics_1, decoded_omics_2, decoded_omics_3 = self.forward(
+            omics_1, omics_2, omics_3
+        )
 
-        # Train
-        for epoch in range(num_epochs):
-            train_loss_sum = 0.0  # Record the loss of each epoch
+        loss = (
+            self.a * loss_fn(decoded_omics_1, omics_1)
+            + self.b * loss_fn(decoded_omics_2, omics_2)
+            + self.c * loss_fn(decoded_omics_3, omics_3)
+        )
 
-            for batch_idx, (x_omics, _) in enumerate(train_loader):
-                # Forward
-                omics_1 = x_omics[0].to(DEVICE)
-                omics_2 = x_omics[1].to(DEVICE)
-                omics_3 = x_omics[2].to(DEVICE)
+        return [latent_data, decoded_omics_1, decoded_omics_2, decoded_omics_3], loss
 
-                (
-                    latent_data,
-                    decoded_omics_1,
-                    decoded_omics_2,
-                    decoded_omics_3,
-                ) = self.forward(omics_1, omics_2, omics_3)
+    def get_latent_space(self, x_omics):
+        omics_1 = x_omics[0].to(self.device)
+        omics_2 = x_omics[1].to(self.device)
+        omics_3 = x_omics[2].to(self.device)
 
-                # Loss
-                loss = (
-                    self.a * loss_fn(decoded_omics_1, omics_1)
-                    + self.b * loss_fn(decoded_omics_2, omics_2)
-                    + self.c * loss_fn(decoded_omics_3, omics_3)
-                )
-
-                # Backpropagation
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-
-                del omics_1, omics_2, omics_3
-
-                train_loss_sum += loss.sum().item()
-
-            loss_ls.append(train_loss_sum)
-            print("epoch: %d | loss: %.4f" % (epoch + 1, train_loss_sum))
-
-        # draw the training loss curve
-        plt.plot([i + 1 for i in range(num_epochs)], loss_ls)
-        plt.xlabel("epochs")
-        plt.ylabel("loss")
-        plt.savefig("result/AE_train_loss.png")
-
-    def test(self, test_loader, loss_fn):
-        DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        batch_loss_sum = 0.0  # Record the loss of each epoch
-
-        # Test
-        with torch.no_grad():
-            for batch_idx, (x_omics, _) in enumerate(test_loader):
-                # Forward
-                omics_1 = x_omics[0].to(DEVICE)
-                omics_2 = x_omics[1].to(DEVICE)
-                omics_3 = x_omics[2].to(DEVICE)
-
-                (
-                    latent_data,
-                    decoded_omics_1,
-                    decoded_omics_2,
-                    decoded_omics_3,
-                ) = self.forward(omics_1, omics_2, omics_3)
-
-                # Loss
-                loss = (
-                    self.a * loss_fn(decoded_omics_1, omics_1)
-                    + self.b * loss_fn(decoded_omics_2, omics_2)
-                    + self.c * loss_fn(decoded_omics_3, omics_3)
-                )
-
-                batch_loss_sum += loss.sum().item()
-
-            print("Test Loss: %.4f" % (batch_loss_sum / len(test_loader)))
+        latent_data, decoded_omics_1, decoded_omics_2, decoded_omics_3 = self.forward(
+            omics_1, omics_2, omics_3
+        )
+        return latent_data.detach().cpu().numpy()

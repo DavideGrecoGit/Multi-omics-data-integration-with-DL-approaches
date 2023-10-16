@@ -108,6 +108,8 @@ class MMAE(nn.Module):
                 loss.backward()
                 optimizer.step()
 
+                del omics_1, omics_2, omics_3
+
                 train_loss_sum += loss.sum().item()
 
             loss_ls.append(train_loss_sum)

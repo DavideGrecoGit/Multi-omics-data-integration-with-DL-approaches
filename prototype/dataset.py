@@ -18,14 +18,16 @@ class MoGCN_Dataset(Dataset):
 
     def __init__(
         self,
-        omics_data,
-        gt_labels,
+        all_omics_data,
+        all_gt_labels,
         path_list_samples,
     ):
         # Read and filter omics data
         self.omics_data = [
-            filter_MoGCN_data(omics, path_list_samples) for omics in omics_data
+            filter_MoGCN_data(omics, path_list_samples) for omics in all_omics_data
         ]
+
+        self.samples_list = self.omics_data[0]["Sample"].tolist()
 
         # Store features dimensions of each omics.
         # Note: -1 is required to remove the 'Sample' column from the count
@@ -36,23 +38,26 @@ class MoGCN_Dataset(Dataset):
             torch.tensor(
                 omics.loc[:, omics.columns != "Sample"].values, dtype=torch.float
             )
-            for omics in omics_data
+            for omics in self.omics_data
         ]
 
         # Read and filter GT data
-        self.gt_labels = filter_MoGCN_data(gt_labels, path_list_samples)
+        filtered_gt = filter_MoGCN_data(all_gt_labels, path_list_samples)
+
         # Convert gt_labels to Tensor
-        self.labels = torch.tensor(
-            self.gt_labels.loc[:, self.gt_labels.columns == "class"].values,
+        self.gt_classes = torch.tensor(
+            filtered_gt.loc[:, filtered_gt.columns == "class"].values,
             dtype=torch.float,
         )
 
+        self.gt_labels = filtered_gt["PAM50Call_RNAseq"]
+
     def __len__(self):
-        return self.labels.size()[0]
+        return self.gt_classes.size()[0]
 
     def __getitem__(self, idx):
         items = [omics[idx, :] for omics in self.omics_data]
 
-        label = self.labels[idx, :]
+        label = self.gt_classes[idx, :]
 
         return items, label

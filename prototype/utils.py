@@ -1,8 +1,6 @@
-import os
-import shutil
-import torch
 import random
 import numpy as np
+import torch
 import pandas as pd
 
 
@@ -60,3 +58,36 @@ def setup_seed(seed):
     np.random.seed(seed)
     random.seed(seed)
     torch.backends.cudnn.deterministic = True
+
+
+# [-1, 1]
+# self.omics_data = [
+#     -1 + (2 * ((omics - omics.min()) / (omics.max() - omics.min())))
+#     for omics in self.omics_data
+# ]
+
+# [0, 1]
+# self.omics_data[0] = (self.omics_data[0] - self.omics_data[0].min()) / (
+#     self.omics_data[0].max() - self.omics_data[0].min()
+# )
+# self.omics_data[2] = (self.omics_data[2] - self.omics_data[2].min()) / (
+#     self.omics_data[2].max() - self.omics_data[2].min()
+# )
+
+# Standardisation
+
+# self.omics_data = [
+#     (omics - torch.mean(omics)) / torch.std(omics) for omics in self.omics_data
+# ]
+
+# self.omics_data[0] = (
+#     self.omics_data[0] - torch.mean(self.omics_data[0])
+# ) / torch.std(self.omics_data[0])
+# self.omics_data[2] = (
+#     self.omics_data[2] - torch.mean(self.omics_data[2])
+# ) / torch.std(self.omics_data[2])
+
+# for omics in self.omics_data:
+#     print(omics[1])
+
+# self.omics_data[1][self.omics_data[1] == -1] = 2.0

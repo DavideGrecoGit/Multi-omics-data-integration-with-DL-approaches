@@ -1,4 +1,3 @@
-from utils import read_MoGCN_data, filter_MoGCN_data
 import torch
 from torch.utils.data import Dataset
 

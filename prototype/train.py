@@ -43,7 +43,7 @@ def train_loop(model, train_loader, optimizer, loss_fn, num_epochs=100):
     return loss_ls[-1]
 
 
-def test(model, test_loader, loss_fn):
+def test_loop(model, test_loader, loss_fn):
     batch_loss_sum = 0.0  # Record the loss of each epoch
 
     # Test
@@ -118,10 +118,10 @@ def train_test(
 
         # Test
         model.eval()  # before save and test, fix the variables
-        test_loss = test(model, test_loader, loss_fn)
+        test_loss = test_loop(model, test_loader, loss_fn)
 
-        # Save model
-        torch.save(model, f"model/AE/{model.name}_model.pkl")
+        # # Save model
+        # torch.save(model, f"model/AE/{model.name}_model.pkl")
 
         # Save and Plot latent space
         kl_divergence = save_latent_data(MoGCN_train, model)

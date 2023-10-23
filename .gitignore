@@ -1,8 +1,8 @@
 GDC/
 OmiEmbed/
 MoGCN/
-MoGCNMoGCN_Evaluation/data
-MoGCNMoGCN_Evaluation/model
+MoGCN_Evaluation/data
+MoGCN_Evaluation/model
 data
 prototype/checkpoints
 prototype/result

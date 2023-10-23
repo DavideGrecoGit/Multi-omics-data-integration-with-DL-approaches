@@ -1,8 +1,10 @@
 GDC/
 OmiEmbed/
 MoGCN/
-prototype/data
-prototype/model
+MoGCNMoGCN_Evaluation/data
+MoGCNMoGCN_Evaluation/model
+data
+prototype/checkpoints
 prototype/result
 
 # Byte-compiled / optimized / DLL files

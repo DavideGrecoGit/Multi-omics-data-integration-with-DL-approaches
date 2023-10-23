@@ -2,6 +2,15 @@ import random
 import numpy as np
 import torch
 import pandas as pd
+import os
+import argparse
+
+
+def make_path(new_path):
+    if not os.path.exists(new_path):
+        os.makedirs(new_path)
+
+    return new_path
 
 
 def read_data(path):
@@ -23,7 +32,10 @@ def filter_MoGCN_data(data, allowed_samples_path):
     )
 
 
-def read_MoGCN_data(paths):
+def read_MoGCN_data(
+    omics_paths=["data/fpkm_data.csv", "data/gistic_data.csv", "data/rppa_data.csv"],
+    gt_data_path="data/sample_classes.csv",
+):
     """
     Read a list of csv path of omics data
     and assert they all have the same sample list.
@@ -33,7 +45,7 @@ def read_MoGCN_data(paths):
     """
 
     # read data
-    omics_data = [read_data(path) for path in paths]
+    omics_data = [read_data(path) for path in omics_paths]
 
     # Test that all omics dat ahave the SAME Samples IDs
     for omics in omics_data:
@@ -41,24 +53,23 @@ def read_MoGCN_data(paths):
             omics_data[0]["Sample"]
         ), "Sample IDs are not consistent between different omics data"
 
-    return omics_data
+    gt_data = read_data(gt_data_path)
+
+    samples_list = omics_data[0]["Sample"].tolist()
+    classes_list = gt_data["class"].tolist()
+
+    return omics_data, gt_data, samples_list, classes_list
 
 
-def setup_seed(seed):
-    """
-    setup seed to make the experiments deterministic
+# def train_test_split(gt_data, percentage=0.2):
+#     samples = gt_data.index.groupby('class', group_keys=False).apply(lambda x: x.sample(frac=percentage))
 
-    Parameters:
-        seed(int) -- the random seed
+#     omics_data.loc[omics_data['Sample'] == some_value]
 
-    @source https://github.com/zhangxiaoyu11/OmiEmbed
-    """
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-    torch.backends.cudnn.deterministic = True
+#     test_omics_data = [omics.iloc[test_index] for omics in omics_data]
+#     test_labels = gt_labels.iloc[test_index]
 
+#     return samples
 
 # [-1, 1]
 # self.omics_data = [
@@ -91,3 +102,24 @@ def setup_seed(seed):
 #     print(omics[1])
 
 # self.omics_data[1][self.omics_data[1] == -1] = 2.0
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--path", "-p", type=str, required=True, help="Path to data files"
+    )
+    args = parser.parse_args()
+
+    data_path = args.path
+    omics_file_names = ["fpkm_data.csv", "gistic_data.csv", "rppa_data.csv"]
+    gt_file_name = "sample_classes.csv"
+
+    omics_data, gt_data, samples_list, classes_list = read_MoGCN_data(
+        omics_paths=[os.path.join(data_path, file) for file in omics_file_names],
+        gt_data_path=os.path.join(data_path, gt_file_name),
+    )
+
+    for omics in omics_data:
+        print(omics.head(5))
+
+    print(gt_data.head(5))

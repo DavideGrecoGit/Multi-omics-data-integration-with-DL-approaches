@@ -1,11 +1,15 @@
 GDC/
 OmiEmbed/
 MoGCN/
+MOGDx/
+MOGONET/
 MoGCN_Evaluation/data
 MoGCN_Evaluation/model
 data
 prototype/checkpoints
-prototype/result
+prototype/results
+Hyperparameters_tuning/results
+TCGA-BRCA/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -61,48 +61,6 @@ def read_MoGCN_data(
     return omics_data, gt_data, samples_list, classes_list
 
 
-# def train_test_split(gt_data, percentage=0.2):
-#     samples = gt_data.index.groupby('class', group_keys=False).apply(lambda x: x.sample(frac=percentage))
-
-#     omics_data.loc[omics_data['Sample'] == some_value]
-
-#     test_omics_data = [omics.iloc[test_index] for omics in omics_data]
-#     test_labels = gt_labels.iloc[test_index]
-
-#     return samples
-
-# [-1, 1]
-# self.omics_data = [
-#     -1 + (2 * ((omics - omics.min()) / (omics.max() - omics.min())))
-#     for omics in self.omics_data
-# ]
-
-# [0, 1]
-# self.omics_data[0] = (self.omics_data[0] - self.omics_data[0].min()) / (
-#     self.omics_data[0].max() - self.omics_data[0].min()
-# )
-# self.omics_data[2] = (self.omics_data[2] - self.omics_data[2].min()) / (
-#     self.omics_data[2].max() - self.omics_data[2].min()
-# )
-
-# Standardisation
-
-# self.omics_data = [
-#     (omics - torch.mean(omics)) / torch.std(omics) for omics in self.omics_data
-# ]
-
-# self.omics_data[0] = (
-#     self.omics_data[0] - torch.mean(self.omics_data[0])
-# ) / torch.std(self.omics_data[0])
-# self.omics_data[2] = (
-#     self.omics_data[2] - torch.mean(self.omics_data[2])
-# ) / torch.std(self.omics_data[2])
-
-# for omics in self.omics_data:
-#     print(omics[1])
-
-# self.omics_data[1][self.omics_data[1] == -1] = 2.0
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(

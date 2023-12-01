@@ -14,15 +14,13 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 def plot_latent_space(h, y):
     z = TSNE(n_components=2).fit_transform(h)
 
-    sns.scatterplot(x=z[:, 0], y=z[:, 1], hue=y, palette=sns.color_palette("tab10", 5))
+    sns.scatterplot(x=z[:, 0], y=z[:, 1], hue=y, palette=sns.color_palette("tab10"))
     plt.show()
 
 
-def plot_confusion_matrix(y_true, pred, normalize="all"):
+def plot_confusion_matrix(y_true, pred, labels, normalize="all"):
     cm = confusion_matrix(y_true, pred, normalize=normalize)
-    cm_display = ConfusionMatrixDisplay(
-        confusion_matrix=cm, display_labels=data.pam50_labels
-    )
+    cm_display = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
     cm_display.plot()
     plt.show()
 

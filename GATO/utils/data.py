@@ -15,7 +15,7 @@ from sklearn.model_selection import train_test_split
 def plot_latent_space(h, y):
     z = TSNE(n_components=2).fit_transform(h)
 
-    sns.scatterplot(x=z[:, 0], y=z[:, 1], hue=y, palette=sns.color_palette("tab5"))
+    sns.scatterplot(x=z[:, 0], y=z[:, 1], hue=y, palette=sns.color_palette("bright"))
     plt.show()
 
 

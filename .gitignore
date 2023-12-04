@@ -6,6 +6,7 @@ prototype/checkpoints
 prototype/results
 Hyperparameters_tuning/results
 Hyperparameters_tuning/data
+*.pth
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -9,16 +9,17 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.manifold import TSNE
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.model_selection import train_test_split
 
 
 def plot_latent_space(h, y):
     z = TSNE(n_components=2).fit_transform(h)
 
-    sns.scatterplot(x=z[:, 0], y=z[:, 1], hue=y, palette=sns.color_palette("tab10"))
+    sns.scatterplot(x=z[:, 0], y=z[:, 1], hue=y, palette=sns.color_palette("tab5"))
     plt.show()
 
 
-def plot_confusion_matrix(y_true, pred, labels, normalize="all"):
+def plot_confusion_matrix(y_true, pred, labels, normalize="true"):
     cm = confusion_matrix(y_true, pred, normalize=normalize)
     cm_display = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
     cm_display.plot()
@@ -46,6 +47,27 @@ def get_edge_index(omics, threshold=0.002, metric="cosine", sample_list=None):
     fused_net[fused_net < threshold] = 0
 
     return to_edge_index((torch.tensor(fused_net, dtype=torch.long).to_sparse()))[0]
+
+
+def array_index_to_bool(idx, n):
+    mask = np.zeros(n, dtype=int)
+    mask[idx] = 1
+    return mask.astype(bool)
+
+
+def save_csv_and_check(mask, output_path, filename):
+    np.savetxt(
+        os.path.join(output_path, f"{filename}.csv"),
+        mask,
+        delimiter=",",
+        fmt="%s",
+    )
+
+    mask_check = np.genfromtxt(
+        os.path.join(output_path, f"{filename}.csv"), delimiter=",", dtype=bool
+    )
+
+    assert (mask == mask_check).all(), "File incorrectly saved"
 
 
 def to_categorical(data, dtype=None):
@@ -226,71 +248,65 @@ def make_path(new_path):
     return new_path
 
 
-def read_data(path):
-    """
-    @source https://github.com/lifoof/mogcn
-    """
-
-    df = pd.read_csv(path, header=0, index_col=None)
-    df.rename(columns={df.columns.tolist()[0]: "Sample"}, inplace=True)
-    df.sort_values(by="Sample", ascending=True, inplace=True)
-
-    return df
-
-
-def filter_MoGCN_data(data, allowed_samples_path):
-    allowed_samples = read_data(allowed_samples_path)
-    return data.loc[data["Sample"].isin(allowed_samples["Sample"])].reset_index(
-        drop=True
-    )
-
-
-def read_MoGCN_data(
-    omics_paths=["data/fpkm_data.csv", "data/gistic_data.csv", "data/rppa_data.csv"],
-    gt_data_path="data/sample_classes.csv",
-):
-    """
-    Read a list of csv path of omics data
-    and assert they all have the same sample list.
-
-    Parameters:
-        paths -- list of paths to omics-data csv files
-    """
-
-    # read data
-    omics_data = [read_data(path) for path in omics_paths]
-
-    # Test that all omics dat ahave the SAME Samples IDs
-    for omics in omics_data:
-        assert omics["Sample"].equals(
-            omics_data[0]["Sample"]
-        ), "Sample IDs are not consistent between different omics data"
-
-    gt_data = read_data(gt_data_path)
-
-    samples_list = omics_data[0]["Sample"].tolist()
-    classes_list = gt_data["class"].tolist()
-
-    return omics_data, gt_data, samples_list, classes_list
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--path", "-p", type=str, required=True, help="Path to data files"
+        "--output_path",
+        "-o",
+        type=str,
+        help="Output path to save directory",
+        default="GATO/data/",
+    )
+    parser.add_argument(
+        "--metabric_path",
+        "-mt",
+        type=str,
+        help="Path to METABRIC csv file",
+        default="GATO/data/METABRIC_CLIN_GE_CNA.csv",
+    )
+    parser.add_argument(
+        "--test_split", "-ts", type=str, help="Split test size", default=0.2
+    )
+    parser.add_argument(
+        "--val_split", "-vs", type=str, help="Split val size", default=0.2
     )
     args = parser.parse_args()
 
-    data_path = args.path
-    omics_file_names = ["fpkm_data.csv", "gistic_data.csv", "rppa_data.csv"]
-    gt_file_name = "sample_classes.csv"
+    # Load METABRIC
+    complete_data = pd.read_csv(
+        args.metabric_path, index_col=None, header=0, low_memory=False
+    )
+    # Remove unknown classes
+    complete_data = complete_data.drop(
+        complete_data[complete_data["Pam50Subtype"] == "?"].index
+    )
+    # Get pre-processed data
+    omics = get_data(complete_data, complete_data)
 
-    omics_data, gt_data, samples_list, classes_list = read_MoGCN_data(
-        omics_paths=[os.path.join(data_path, file) for file in omics_file_names],
-        gt_data_path=os.path.join(data_path, gt_file_name),
+    y = omics["pam50np"]
+
+    idx = np.arange(0, len(y), 1, dtype=int)
+    idx_train, idx_test = train_test_split(
+        idx, test_size=args.test_split, random_state=42, stratify=y
     )
 
-    for omics in omics_data:
-        print(omics.head(5))
+    mask_test = array_index_to_bool(idx_test, len(y))
 
-    print(gt_data.head(5))
+    idx_train, idx_val = train_test_split(
+        idx_train,
+        test_size=args.val_split,
+        random_state=42,
+        stratify=y[idx_train],
+    )
+
+    mask_train = array_index_to_bool(idx_train, len(y))
+    mask_val = array_index_to_bool(idx_val, len(y))
+
+    save_csv_and_check(mask_train, args.output_path, "mask_train")
+    save_csv_and_check(mask_val, args.output_path, "mask_val")
+    save_csv_and_check(mask_test, args.output_path, "mask_test")
+
+    temp = np.logical_xor(mask_val, mask_train)
+    assert (
+        np.logical_xor(temp, mask_test).all() == True
+    ), "Train, val and test masks are not disjoint"

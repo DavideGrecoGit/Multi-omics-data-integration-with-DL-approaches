@@ -7,6 +7,7 @@ prototype/results
 Hyperparameters_tuning/results
 Hyperparameters_tuning/data
 *.pth
+*.db
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

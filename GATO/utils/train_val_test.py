@@ -6,6 +6,12 @@ import numpy as np
 import random
 from typing import Literal
 import copy
+import matplotlib.pyplot as plt
+from sklearn.manifold import TSNE
+import seaborn as sns
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+SEED = 42
 
 
 def train(model, data, optimizer):
@@ -64,7 +70,7 @@ def evaluate(model, data):
     return f1
 
 
-def setup_seed(seed=42):
+def setup_seed(seed=SEED):
     """
     setup seed to make the experiments deterministic
 
@@ -99,7 +105,7 @@ class Early_Stopping:
         self.counter = 0
         self.tolerance = tolerance
 
-    def check(self, new_loss, model):
+    def check(self, new_loss):
         self.counter += 1
 
         match self.mode:
@@ -107,14 +113,14 @@ class Early_Stopping:
                 if new_loss < self.best_loss:
                     self.best_loss = new_loss
                     self.counter = 0
-                    self.best_model = copy.deepcopy(model)
+
                     return False
 
             case "maximize":
                 if new_loss > self.best_loss:
                     self.best_loss = new_loss
                     self.counter = 0
-                    self.best_model = copy.deepcopy(model)
+
                     return False
 
         if self.counter == self.tolerance:

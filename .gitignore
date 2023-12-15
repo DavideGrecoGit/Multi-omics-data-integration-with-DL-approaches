@@ -9,6 +9,7 @@ Hyperparameters_tuning/data
 *.pth
 *.db
 output/
+*.pdf
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

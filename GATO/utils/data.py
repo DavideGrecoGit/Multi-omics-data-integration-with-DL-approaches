@@ -10,10 +10,13 @@ import seaborn as sns
 from sklearn.manifold import TSNE
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.model_selection import train_test_split
+from torch.utils.data import Dataset
+
+SEED = 42
 
 
 def plot_latent_space(h, y):
-    z = TSNE(n_components=2).fit_transform(h)
+    z = TSNE(n_components=2, random_state=SEED).fit_transform(h)
 
     sns.scatterplot(x=z[:, 0], y=z[:, 1], hue=y, palette=sns.color_palette("bright"))
     plt.show()
@@ -118,16 +121,22 @@ def normalizeRNA(*args):
         return (args[0] - args[0].min(axis=0)) / (args[0].max(axis=0) - args[0].min(0))
 
 
-def get_data(data, complete_data):
+def get_data(metabric_path, complete_metabric_path):
     """
     Source https://github.com/CancerAI-CL/IntegrativeVAEs.git
     """
+
+    data = pd.read_csv(metabric_path, index_col=None, header=0, low_memory=False)
+    # Remove unknown classes
+    # data = data.drop(data[data["Pam50Subtype"] == "?"].index)
+
     d = {}
     clin_fold = data[["METABRIC_ID"]]
 
     rna = data[[col for col in data if col.startswith("GE")]]
     cna = data[[col for col in data if col.startswith("CNA")]]
 
+    d["METABRIC_ID"] = data["METABRIC_ID"]
     d["ic"] = list(data["iC10"].values)
     d["pam50"] = list(data["Pam50Subtype"].values)
     d["er"] = list(data["ER_Expr"].values)
@@ -167,6 +176,12 @@ def get_data(data, complete_data):
     # On the basis of the above we will keep some as numeric and others into one-hot encodings
     # (I am not comfortable binning the continuous numeric columns without some basis for their bins)
     # Or since we dont have that much anyway just one hot everything and use BCE Loss to train
+
+    # We have to get the entire dataset, transform them into one-hots, bins
+    # complete_data = pd.read_csv(complete_data).set_index("METABRIC_ID")
+    complete_data = pd.read_csv(
+        complete_metabric_path, index_col=None, header=0, low_memory=False
+    )
 
     # Either we keep numerics as
     clin_numeric = complete_data[["METABRIC_ID", "Age_At_Diagnosis", "NPI", "Size"]]
@@ -215,6 +230,7 @@ def get_data(data, complete_data):
             metabric_id,
             aad,
             npi,
+            size,
             btl,
             ims,
             lnp,
@@ -272,16 +288,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # Load METABRIC
-    complete_data = pd.read_csv(
-        args.metabric_path, index_col=None, header=0, low_memory=False
-    )
-    # Remove unknown classes
-    complete_data = complete_data.drop(
-        complete_data[complete_data["Pam50Subtype"] == "?"].index
-    )
-    # Get pre-processed data
-    omics = get_data(complete_data, complete_data)
+    omics = get_data(args.metabric_path, args.metabric_path)
 
     y = omics["pam50np"]
 

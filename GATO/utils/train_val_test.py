@@ -1,5 +1,4 @@
 from sklearn.metrics import f1_score
-from utils.data import plot_confusion_matrix, plot_latent_space
 import torch.nn.functional as F
 import torch
 import numpy as np
@@ -12,6 +11,27 @@ import seaborn as sns
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 SEED = 42
+
+
+def setup_seed(seed=SEED):
+    """
+    setup seed to make the experiments deterministic
+
+    Parameters:
+        seed(int) -- the random seed
+
+    @source https://github.com/zhangxiaoyu11/OmiEmbed
+    """
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+
+    return seed
+
+
+from utils.data import plot_confusion_matrix, plot_latent_space
 
 
 def train(model, data, optimizer):
@@ -68,24 +88,6 @@ def evaluate(model, data):
         normalize="true",
     )
     return f1
-
-
-def setup_seed(seed=SEED):
-    """
-    setup seed to make the experiments deterministic
-
-    Parameters:
-        seed(int) -- the random seed
-
-    @source https://github.com/zhangxiaoyu11/OmiEmbed
-    """
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-    torch.backends.cudnn.deterministic = True
-
-    return seed
 
 
 _MODES = Literal["minimize", "maximize"]

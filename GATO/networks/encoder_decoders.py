@@ -38,15 +38,14 @@ class FC_layer(nn.Module):
         """
         super().__init__()
 
-        # Linear
         self.fc_block = [nn.Linear(input_dim, output_dim)]
 
         if normalization:
             self.fc_block.append(nn.BatchNorm1d(output_dim))
-        # Dropout
+
         if 0 < d_p <= 1:
             self.fc_block.append(nn.Dropout(p=d_p))
-        # LeakyReLU
+
         if activation_layer is not None:
             self.fc_block.append(activation_layer)
 
@@ -65,11 +64,11 @@ class VAE(nn.Module):
         self,
         params,
         omics_index=None,
-        early_stopping=None,
+        tolerance=5,
     ):
         super().__init__()
 
-        self.early_stopping = early_stopping
+        self.early_stopping = Early_Stopping(tolerance)
         self.beta = params.beta
         self.regularisation = params.regularisation
         self.loss_fn = params.loss_fn
@@ -261,8 +260,8 @@ class Params_VAE:
 
 
 class H_VAE(VAE):
-    def __init__(self, input_VAEs, params, early_stopping=None):
-        super().__init__(params, early_stopping=early_stopping)
+    def __init__(self, input_VAEs, params, tolerance=10):
+        super().__init__(params, tolerance=tolerance)
 
         self.input_VAEs = input_VAEs
         self.params = params

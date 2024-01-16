@@ -1,11 +1,15 @@
-GDC/
-OmiEmbed/
-MoGCN/
 MoGCN_Evaluation/data
 MoGCN_Evaluation/model
-data
+Datasets/
+Models/
 prototype/checkpoints
-prototype/result
+prototype/results
+Hyperparameters_tuning/results
+Hyperparameters_tuning/data
+*.pth
+*.db
+output/
+*.pdf
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

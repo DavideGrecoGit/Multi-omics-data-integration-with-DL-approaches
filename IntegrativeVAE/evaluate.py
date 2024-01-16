@@ -37,6 +37,8 @@ if __name__ == "__main__":
             if id != args.id:
                 continue
 
+            print(f"\n>>> ID {id} >>>\n")
+
             latent_dir = os.path.join(args.results_dir, dir, id)
             acc_scores = []
 
@@ -64,7 +66,7 @@ if __name__ == "__main__":
                 acc_scores.append([*accTest, *f1Test])
 
             metrics = np.array(acc_scores).mean(axis=0)
-            print(f"Mean Test metrics: {metrics}")
+            print(f"Mean Test metrics: {metrics}\n")
             columns = [
                 "Acc_NB",
                 "Acc_SVM",

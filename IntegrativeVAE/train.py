@@ -4,90 +4,18 @@ import os
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from networks import Params_VAE, VAE
+from networks import Params_VAE, VAE, CNC_VAE, H_VAE
 from data import Omics
-import numpy as np
-import pandas as pd
-from classifiers import Benchmark_Classifier
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 N_FOLDS = 5
-
-
-class CNC_VAE(VAE):
-    def __init__(self, params):
-        super().__init__(params)
-
-    def handle_input(self, x):
-        return torch.cat(x, dim=1)
-
-
-class H_VAE(VAE):
-    def __init__(self, params, omics_names):
-        super().__init__(params)
-
-        input_VAEs = []
-
-        for i in range(len(omics_names)):
-            temp_params = Params_VAE(
-                train_omics.get_input_dims(omics_names[i]),
-                params.dense_dim,
-                params.dense_dim // 2,
-                epochs=params.epochs,
-                beta=params.beta,
-                regularisation=params.regularisation,
-                weight_decay=params.weight_decay,
-            )
-            if omics_names[i] == "CNA" or omics_names[i] == "CLI":
-                temp_params.loss_fn = nn.BCEWithLogitsLoss(reduction="mean")
-            if omics_names[i] == "RNA":
-                temp_params.loss_fn = nn.MSELoss(reduction="mean")
-
-            input_VAEs.append(VAE(temp_params, omics_index=i))
-
-        self.input_VAEs = input_VAEs
-        self.params = params
-
-    def forward(self, x):
-        latent_omics = []
-
-        with torch.no_grad():
-            for i in range(len(x)):
-                self.input_VAEs[i].eval()
-                latent_data = self.input_VAEs[i].forward(x)
-                z = latent_data[-1]
-                latent_omics.append(z)
-
-        latent_x = torch.cat(latent_omics, dim=1)
-
-        x, reconstructed, latent_mean, latent_log_var, z = super().forward(latent_x)
-
-        return latent_x, reconstructed, latent_mean, latent_log_var, z
-
-    def train_loop(self, train_dataloader, test_dataloader, optimizer, epochs):
-        for i in range(len(self.input_VAEs)):
-            print(f"Training VAE {i+1}")
-
-            input_optimizer = torch.optim.Adam(
-                self.input_VAEs[i].parameters(),
-                lr=self.params.lr,
-                weight_decay=self.params.weight_decay,
-            )
-
-            self.input_VAEs[i] = self.input_VAEs[i].to(DEVICE)
-            self.input_VAEs[i].train_loop(
-                train_dataloader, test_dataloader, input_optimizer, epochs
-            )
-
-        print("Training H_VAE")
-        super().train_loop(train_dataloader, test_dataloader, optimizer, epochs)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-omics",
-        help="Type of integration CLI+RNA, CNA+RNA or CLI+CNA",
+        help="Type of integration CLI+RNA, CNA+RNA, CLI+CNA or CLI+CNA+RNA",
         type=str,
         default="CLI+RNA",
     )
@@ -133,7 +61,6 @@ if __name__ == "__main__":
             regularisation=args.r,
             weight_decay=args.w_d,
         )
-        vae_params.save_parameters(save_dir)
 
         acc_scores = []
 
@@ -162,9 +89,14 @@ if __name__ == "__main__":
                     if omics_types == "CLI+CNA":
                         vae_params.loss_fn = nn.BCEWithLogitsLoss(reduction="mean")
                     model = CNC_VAE(vae_params)
+
                 case "H-VAE":
-                    vae_params.input_dim = args.ds
-                    model = H_VAE(vae_params, omics_names)
+                    vae_params.input_dim = args.ds // 2 * len(omics_names)
+                    omics_dims = [
+                        train_omics.get_input_dims(name) for name in omics_names
+                    ]
+                    model = H_VAE(vae_params, omics_names, omics_dims)
+
                 case "VAE":
                     vae_params.input_dim = train_omics.get_input_dims(omics_types)
                     if omics_types == "CLI" or omics_types == "CNA":
@@ -192,3 +124,5 @@ if __name__ == "__main__":
 
             train_embed = model.get_latent_space(train_dataloader, train_save_path)
             test_embed = model.get_latent_space(test_dataloader, test_save_path)
+
+        vae_params.save_parameters(save_dir)

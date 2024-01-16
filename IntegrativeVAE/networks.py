@@ -160,42 +160,73 @@ class VAE(nn.Module):
         return latent_space
 
 
-class Early_Stopping:
-    def __init__(self, tolerance=5, mode: _MODES = "minimize"):
-        self.mode = mode
+class CNC_VAE(VAE):
+    def __init__(self, params):
+        super().__init__(params)
 
-        match self.mode:
-            case "minimize":
-                self.best_loss = float("inf")
-            case "maximize":
-                self.best_loss = -float("inf")
+    def handle_input(self, x):
+        return torch.cat(x, dim=1)
 
-        self.best_model = None
-        self.counter = 0
-        self.tolerance = tolerance
 
-    def check(self, new_loss):
-        self.counter += 1
+class H_VAE(VAE):
+    def __init__(self, params, omics_names, omics_dims):
+        super().__init__(params)
 
-        match self.mode:
-            case "minimize":
-                if new_loss < self.best_loss:
-                    self.best_loss = new_loss
-                    self.counter = 0
+        input_VAEs = []
 
-                    return False
+        for i in range(len(omics_names)):
+            temp_params = Params_VAE(
+                omics_dims[i],
+                params.dense_dim,
+                params.dense_dim // 2,
+                epochs=params.epochs,
+                beta=params.beta,
+                regularisation=params.regularisation,
+                weight_decay=params.weight_decay,
+            )
+            if omics_names[i] == "CNA" or omics_names[i] == "CLI":
+                temp_params.loss_fn = nn.BCEWithLogitsLoss(reduction="mean")
+            if omics_names[i] == "RNA":
+                temp_params.loss_fn = nn.MSELoss(reduction="mean")
 
-            case "maximize":
-                if new_loss > self.best_loss:
-                    self.best_loss = new_loss
-                    self.counter = 0
+            input_VAEs.append(VAE(temp_params, omics_index=i))
 
-                    return False
+        self.input_VAEs = input_VAEs
+        self.params = params
 
-        if self.counter == self.tolerance:
-            return True
+    def forward(self, x):
+        latent_omics = []
 
-        return False
+        with torch.no_grad():
+            for i in range(len(x)):
+                self.input_VAEs[i].eval()
+                latent_data = self.input_VAEs[i].forward(x)
+                z = latent_data[-1]
+                latent_omics.append(z)
+
+        latent_x = torch.cat(latent_omics, dim=1)
+
+        x, reconstructed, latent_mean, latent_log_var, z = super().forward(latent_x)
+
+        return latent_x, reconstructed, latent_mean, latent_log_var, z
+
+    def train_loop(self, train_dataloader, test_dataloader, optimizer, epochs):
+        for i in range(len(self.input_VAEs)):
+            print(f"Training VAE {i+1}")
+
+            input_optimizer = torch.optim.Adam(
+                self.input_VAEs[i].parameters(),
+                lr=self.params.lr,
+                weight_decay=self.params.weight_decay,
+            )
+
+            self.input_VAEs[i] = self.input_VAEs[i].to(DEVICE)
+            self.input_VAEs[i].train_loop(
+                train_dataloader, test_dataloader, input_optimizer, epochs
+            )
+
+        print("Training H_VAE")
+        super().train_loop(train_dataloader, test_dataloader, optimizer, epochs)
 
 
 class Params_VAE:

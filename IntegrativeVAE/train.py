@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from networks import Params_VAE, VAE, CNC_VAE, H_VAE
-from data import Omics
+from data import Omics, get_data
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 N_FOLDS = 5
@@ -30,6 +30,12 @@ if __name__ == "__main__":
     parser.add_argument("-r", help="Regularisation function", type=str, default="mmd")
     parser.add_argument("-w_d", help="Weight decay", type=int, default=0.00001)
     parser.add_argument("-d_p", help="Dropout probability", type=int, default=0)
+    parser.add_argument(
+        "-remove_unknown",
+        help="Remove samples with unkown Ground Truth class",
+        type=bool,
+        default=True,
+    )
 
     parser.add_argument("-m", help="Model name", type=str, required=False)
 
@@ -60,6 +66,7 @@ if __name__ == "__main__":
             beta=args.b,
             regularisation=args.r,
             weight_decay=args.w_d,
+            remove_unknown=args.remove_unknown,
         )
 
         acc_scores = []
@@ -67,18 +74,23 @@ if __name__ == "__main__":
         for k in range(1, N_FOLDS + 1):
             print(f"=== FOLD {k} ===")
 
-            # Data loading
-            train_data_path = os.path.join(
-                fold_dir, f"fold{k}", file_name + "_train.csv"
+            # Get pre-processed data
+            train_omics = get_data(
+                os.path.join(fold_dir, f"fold{k}", file_name + "_train.csv"),
+                metabric_path,
+                args.remove_unknown,
             )
-            test_data_path = os.path.join(fold_dir, f"fold{k}", file_name + "_test.csv")
-
-            train_omics = Omics(train_data_path, metabric_path, omics_names)
-            test_omics = Omics(test_data_path, metabric_path, omics_names)
-
+            train_omics = Omics(train_omics, omics_names)
             train_dataloader = DataLoader(
                 train_omics, batch_size=vae_params.batch_size, shuffle=False
             )
+
+            test_omics = get_data(
+                os.path.join(fold_dir, f"fold{k}", file_name + "_test.csv"),
+                metabric_path,
+                args.remove_unknown,
+            )
+            test_omics = Omics(test_omics, omics_names)
             test_dataloader = DataLoader(
                 test_omics, batch_size=vae_params.batch_size, shuffle=False
             )

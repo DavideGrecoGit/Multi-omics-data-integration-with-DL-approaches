@@ -244,7 +244,9 @@ class Params_VAE:
         activation_fn=nn.ELU(),
         beta=50,
         regularisation: _REGULARISATION = "mmd",
+        remove_unknown=True,
     ):
+        self.remove_unknown = remove_unknown
         self.lr = lr
         self.weight_decay = weight_decay
         self.epochs = epochs
@@ -269,6 +271,7 @@ class Params_VAE:
 
     def save_parameters(self, save_dir):
         with open(os.path.join(save_dir, "parameters.txt"), "w") as f:
+            f.write(f"Remove_unknown = {self.remove_unknown}\n")
             f.write(f"Input_dim = {self.input_dim}\n")
             f.write(f"Dense_dim = {self.dense_dim}\n")
             f.write(f"Latent_dim = {self.latent_dim}\n")

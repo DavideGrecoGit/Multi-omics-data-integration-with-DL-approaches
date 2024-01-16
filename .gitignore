@@ -6,6 +6,7 @@ prototype/checkpoints
 prototype/results
 Hyperparameters_tuning/results
 Hyperparameters_tuning/data
+IntegrativeVAE/results
 *.pth
 *.db
 output/

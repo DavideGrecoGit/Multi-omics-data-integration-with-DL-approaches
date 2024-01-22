@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import os
 from classifiers import Benchmark_Classifier
+from data import get_data
 
 
 def load_csv(path):
@@ -31,6 +32,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     fold_dir = "./data/5-fold_pam50stratified/"
+    file_name = "MBdata_33CLINwMiss_1KfGE_1KfCNA"
+    metabric_path = "./data/MBdata_33CLINwMiss_1KfGE_1KfCNA.csv"
 
     for dir in os.listdir(args.results_dir):
         for id in os.listdir(os.path.join(args.results_dir, dir)):
@@ -52,10 +55,17 @@ if __name__ == "__main__":
                     os.path.join(latent_dir, f"fold_{k}", "test_latent.csv")
                 )
 
-                train_gt = load_csv(
-                    os.path.join(fold_dir, f"fold{k}", "train_pam50.csv")
+                train_omics = get_data(
+                    os.path.join(fold_dir, f"fold{k}", file_name + "_train.csv"),
+                    metabric_path,
                 )
-                test_gt = load_csv(os.path.join(fold_dir, f"fold{k}", "test_pam50.csv"))
+                test_omics = get_data(
+                    os.path.join(fold_dir, f"fold{k}", file_name + "_test.csv"),
+                    metabric_path,
+                )
+
+                train_gt = train_omics["pam50np"]
+                test_gt = test_omics["pam50np"]
 
                 classifier = Benchmark_Classifier()
                 accTrain, f1Train = classifier.train(train_embed, train_gt)

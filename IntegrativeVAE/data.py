@@ -13,10 +13,7 @@ transform = {"RNA": "rnanp", "CNA": "cnanp", "CLI": "clin"}
 
 
 class Omics(Dataset):
-    def __init__(self, fold_path, metabric_path, omics_names=["CNA", "RNA", "CLI"]):
-        # Get pre-processed data
-        omics = get_data(fold_path, metabric_path)
-
+    def __init__(self, omics, omics_names=["CNA", "RNA", "CLI"]):
         self.omics_values = {}
         for name in omics_names:
             if name == "RNA":
@@ -130,14 +127,15 @@ def normalizeRNA(*args):
         return (args[0] - args[0].min(axis=0)) / (args[0].max(axis=0) - args[0].min(0))
 
 
-def get_data(metabric_path, complete_metabric_path):
+def get_data(metabric_path, complete_metabric_path, remove_unknown=True):
     """
     Source https://github.com/CancerAI-CL/IntegrativeVAEs.git
     """
 
     data = pd.read_csv(metabric_path, index_col=None, header=0, low_memory=False)
-    # Remove unknown classes
-    # data = data.drop(data[data["Pam50Subtype"] == "?"].index)
+    if remove_unknown:
+        # Remove unknown classes
+        data = data.drop(data[data["Pam50Subtype"] == "?"].index)
 
     d = {}
     clin_fold = data[["METABRIC_ID"]]

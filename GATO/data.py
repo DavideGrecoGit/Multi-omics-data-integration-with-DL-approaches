@@ -2,8 +2,30 @@ import pandas as pd
 import numpy as np
 from torch.utils.data import Dataset
 import torch
+from sklearn.manifold import TSNE
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 SEED = 42
+
+
+def plot_latent_space(h, y, save_path):
+    z = TSNE(n_components=2, random_state=SEED).fit_transform(h)
+
+    sns_plot = sns.scatterplot(
+        x=z[:, 0], y=z[:, 1], hue=y, palette=sns.color_palette("bright")
+    )
+
+    plt.savefig(save_path)
+    plt.close()
+
+
+def plot_confusion_matrix(y_true, pred, save_path, labels=None, normalize="true"):
+    cm = confusion_matrix(y_true, pred, normalize=normalize)
+    cm_display = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
+    cm_display.plot().figure_.savefig(save_path)
+    plt.close()
 
 
 class Omics(Dataset):
@@ -45,6 +67,15 @@ def get_pam50_labels(data):
             cat.append(val)
             index += 1
     return cat
+
+
+def get_fold_mask(fold_path, metabric, remove_unknown=True):
+    kfold = pd.read_csv(fold_path, index_col=None, header=0, low_memory=False)
+    if remove_unknown:
+        # Remove unknown classes
+        kfold = kfold.drop(kfold[kfold["Pam50Subtype"] == "?"].index)
+
+    return np.array(metabric["METABRIC_ID"].isin(kfold["METABRIC_ID"]))
 
 
 def to_categorical(data, dtype=None):

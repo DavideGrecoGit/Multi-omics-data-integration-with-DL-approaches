@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from data import Omics, get_data
-from networks import VAE, Params_VAE
+from GATO.networks.VAEs import VAE, Params_VAE
 from classifiers import Benchmark_Classifier
 import argparse
 

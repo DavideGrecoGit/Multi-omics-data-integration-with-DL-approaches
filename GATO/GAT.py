@@ -5,7 +5,12 @@ import torch
 import torch.nn as nn
 from networks.VAEs import Params_VAE, VAE
 from networks.GNNs import Params_GNN, GAT
-from data import get_data, get_pam50_labels, plot_latent_space, plot_confusion_matrix
+from GATO.utils.data import (
+    get_data,
+    get_pam50_labels,
+    plot_latent_space,
+    plot_confusion_matrix,
+)
 import pandas as pd
 import numpy as np
 from torch_geometric.data import Data
@@ -165,9 +170,7 @@ if __name__ == "__main__":
 
                 latents = []
                 for name in omics_names:
-                    input_dim = 1000
-                    if name == "CLI":
-                        input_dim = 350
+                    input_dim = metabric[name].shape[1]
 
                     vae_path = f"../IntegrativeVAE/results/VAE_{name}/0122141739/fold_{k}/VAE.pth"
 
@@ -181,6 +184,11 @@ if __name__ == "__main__":
                         torch.tensor(metabric[name], dtype=torch.float32)
                     )
                     z = z.detach().cpu().numpy()
+
+                    # z_path = f"/home/davide/Desktop/Projects/Multi-omics-data-integration-with-DL-approaches/GATO/data/Latents/latent_{'_'.join(omics_names)}.csv"
+                    # os.makedirs(z_path, exist_ok=True)
+                    # np.savetxt(z_path, z, delimiter=",")
+
                     latents.append(z)
 
                 snf_path = f"/home/davide/Desktop/Projects/Multi-omics-data-integration-with-DL-approaches/GATO/data/SNF/fold_{k}/snf_{'_'.join(omics_names)}_latent.csv"
@@ -194,10 +202,7 @@ if __name__ == "__main__":
             else:
                 input_dim = 0
                 for name in omics_names:
-                    if name == "CLI":
-                        input_dim = input_dim + 350
-                    else:
-                        input_dim = input_dim + 1000
+                    input_dim = input_dim + metabric[name].shape[1]
 
                 gnn_params.input_dim = input_dim
                 x = np.hstack([metabric[name] for name in omics_names])
@@ -260,8 +265,14 @@ if __name__ == "__main__":
                 os.path.join(save_path, f"{args.m}_cm.jpg"),
             )
 
-            # torch.save(model.state_dict(), os.path.join(save_path, f"{args.m}.pth"))
+            torch.save(model.state_dict(), os.path.join(save_path, f"{args.m}.pth"))
 
+            # Embeddings
+            train_save_path = os.path.join(save_path, "train_latent.csv")
+            test_save_path = os.path.join(save_path, "test_latent.csv")
+
+            train_embed = model.get_latent_space(data, train_save_path)
+            test_embed = model.get_latent_space(data, test_save_path)
 
 means = np.array(acc_scores).mean(axis=0)
 stds = np.array(acc_scores).std(axis=0)

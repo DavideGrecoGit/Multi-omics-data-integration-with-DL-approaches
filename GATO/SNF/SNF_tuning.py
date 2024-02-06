@@ -1,9 +1,14 @@
-from data import get_data, get_pam50_labels
+import os
+import sys
+
+DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, DIR)
+
+
+from GATO.utils.data import get_data, get_pam50_labels
 import os
 import torch
-import pandas as pd
 import numpy as np
-import torch.nn as nn
 import snf
 from snf import compute
 from sklearn import cluster
@@ -12,11 +17,7 @@ import argparse
 import time
 
 SEED = 42
-N_FOLDS = 5
-K = 5
-FOLD_DIR = "./data/5-fold_pam50stratified/"
-FILE_NAME = "MBdata_33CLINwMiss_1KfGE_1KfCNA"
-METABRIC_PATH = "./data/MBdata_33CLINwMiss_1KfGE_1KfCNA.csv"
+METABRIC_PATH = "../data/MBdata_33CLINwMiss_1KfGE_1KfCNA.csv"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 

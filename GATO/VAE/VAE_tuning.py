@@ -1,19 +1,25 @@
 import os
+import sys
+
+DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, DIR)
+
+import os
 import numpy as np
 import optuna
 from optuna.samplers import TPESampler
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from data import Omics, get_data
-from GATO.networks.VAEs import VAE, Params_VAE
+from utils.data import Omics, get_data
+from networks.VAEs import VAE, Params_VAE
 from classifiers import Benchmark_Classifier
 import argparse
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 SEED = 42
-METABRIC_PATH = "./data/MBdata_33CLINwMiss_1KfGE_1KfCNA.csv"
-FOLD_DIR = "./data/5-fold_pam50stratified/"
+METABRIC_PATH = "../data/MBdata_33CLINwMiss_1KfGE_1KfCNA.csv"
+FOLD_DIR = "../data/5-fold_pam50stratified/"
 FILE_NAME = "MBdata_33CLINwMiss_1KfGE_1KfCNA"
 N_FOLDS = 5
 

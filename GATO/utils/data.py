@@ -10,24 +10,6 @@ import seaborn as sns
 SEED = 42
 
 
-def plot_latent_space(h, y, save_path):
-    z = TSNE(n_components=2, random_state=SEED).fit_transform(h)
-
-    sns_plot = sns.scatterplot(
-        x=z[:, 0], y=z[:, 1], hue=y, palette=sns.color_palette("bright")
-    )
-
-    plt.savefig(save_path)
-    plt.close()
-
-
-def plot_confusion_matrix(y_true, pred, save_path, labels=None, normalize="true"):
-    cm = confusion_matrix(y_true, pred, normalize=normalize)
-    cm_display = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
-    cm_display.plot().figure_.savefig(save_path)
-    plt.close()
-
-
 class Omics(Dataset):
     def __init__(self, omics, omics_names=["CNA", "RNA", "CLI"]):
         self.omics_values = {}
@@ -55,6 +37,24 @@ class Omics(Dataset):
 
     def __getitem__(self, idx):
         return [self.omics_values[name][idx] for name in self.omics_names]
+
+
+def plot_latent_space(h, y, save_path):
+    z = TSNE(n_components=2, random_state=SEED).fit_transform(h)
+
+    sns_plot = sns.scatterplot(
+        x=z[:, 0], y=z[:, 1], hue=y, palette=sns.color_palette("bright")
+    )
+
+    plt.savefig(save_path)
+    plt.close()
+
+
+def plot_confusion_matrix(y_true, pred, save_path, labels=None, normalize="true"):
+    cm = confusion_matrix(y_true, pred, normalize=normalize)
+    cm_display = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
+    cm_display.plot().figure_.savefig(save_path)
+    plt.close()
 
 
 def get_pam50_labels(data):

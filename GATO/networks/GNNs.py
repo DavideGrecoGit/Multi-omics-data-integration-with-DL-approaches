@@ -5,6 +5,7 @@ from torch_geometric.logging import log
 from torch_geometric.nn import GATv2Conv, GraphNorm
 from sklearn.metrics import accuracy_score, f1_score
 import os
+import numpy as np
 from torch_geometric.nn import GCNConv
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -49,14 +50,16 @@ class GAT(torch.nn.Module):
             )
 
         # self.norm_cls = GraphNorm(params.latent_dim * params.heads)
-        self.conv_cls = GATv2Conv(
-            params.latent_dim * params.heads,
-            params.n_classes,
-            heads=1,
-            concat=False,
-            dropout=params.d_p,
-            edge_dim=1,
-        )
+        # self.conv_cls = GATv2Conv(
+        #     params.latent_dim * params.heads,
+        #     params.n_classes,
+        #     heads=1,
+        #     concat=False,
+        #     dropout=params.d_p,
+        #     edge_dim=1,
+        # )
+
+        self.fc = nn.Linear(params.latent_dim * params.heads, params.n_classes)
         self.d_p = params.d_p
 
     def forward(self, x, edge_index, edge_attr=None):
@@ -73,7 +76,9 @@ class GAT(torch.nn.Module):
 
         # x = self.norm_cls(x)
         x = F.dropout(x, p=self.d_p, training=self.training)
-        y = self.conv_cls(x=x, edge_index=edge_index, edge_attr=edge_attr)
+        # y = self.conv_cls(x=x, edge_index=edge_index, edge_attr=edge_attr)
+        y = self.fc(x)
+
         return y, x
 
     def train_loop(self, data, optimizer, epochs):
@@ -116,12 +121,21 @@ class GAT(torch.nn.Module):
         return acc, f1
 
     @torch.no_grad()
-    def get_latent_space(self, data):
+    def get_latent_space(self, data, save_path=None):
         self.eval()
         pred, latent = self.forward(data.x, data.edge_index)
         pred = pred.argmax(dim=-1)
 
-        return latent.cpu().numpy()
+        latent = latent.cpu().numpy()
+
+        if save_path:
+            np.savetxt(
+                os.path.join(save_path),
+                latent,
+                delimiter=",",
+            )
+
+        return latent
 
     @torch.no_grad()
     def get_predictions(self, data, mask):

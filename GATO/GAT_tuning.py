@@ -4,11 +4,8 @@ import optuna
 from optuna.samplers import TPESampler
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
-from data import Omics, get_data, get_pam50_labels
+from GATO.utils.data import get_data, get_pam50_labels
 from networks.GNNs import GAT, Params_GNN
-from networks.VAEs import VAE, Params_VAE
-from classifiers import Benchmark_Classifier
 import argparse
 import pandas as pd
 from torch_geometric.data import Data

@@ -8,9 +8,6 @@ import os
 import numpy as np
 from torch_geometric.nn import GCNConv
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-SEED = 42
-
 
 class GAT(torch.nn.Module):
     def __init__(self, params):
@@ -20,7 +17,7 @@ class GAT(torch.nn.Module):
         self.norms = nn.ModuleList()
         self.activation = params.activation_fn
         self.dense_dim = params.dense_dim
-
+        self.d_p = params.d_p
         # self.norm = GraphNorm(params.input_dim)
 
         if params.dense_dim > 0:
@@ -37,6 +34,7 @@ class GAT(torch.nn.Module):
                 params.dense_dim,
                 params.latent_dim,
                 heads=params.heads,
+                concat=False,
                 dropout=params.d_p,
                 edge_dim=1,
             )
@@ -50,17 +48,16 @@ class GAT(torch.nn.Module):
             )
 
         # self.norm_cls = GraphNorm(params.latent_dim * params.heads)
-        # self.conv_cls = GATv2Conv(
-        #     params.latent_dim * params.heads,
-        #     params.n_classes,
-        #     heads=1,
-        #     concat=False,
-        #     dropout=params.d_p,
-        #     edge_dim=1,
-        # )
+        self.conv_cls = GATv2Conv(
+            params.latent_dim,
+            params.n_classes,
+            heads=1,
+            concat=False,
+            dropout=params.d_p,
+            edge_dim=1,
+        )
 
-        self.fc = nn.Linear(params.latent_dim * params.heads, params.n_classes)
-        self.d_p = params.d_p
+        # self.fc = nn.Linear(params.latent_dim * params.heads, params.n_classes)
 
     def forward(self, x, edge_index, edge_attr=None):
         # x = self.norms[i](x)
@@ -76,8 +73,8 @@ class GAT(torch.nn.Module):
 
         # x = self.norm_cls(x)
         x = F.dropout(x, p=self.d_p, training=self.training)
-        # y = self.conv_cls(x=x, edge_index=edge_index, edge_attr=edge_attr)
-        y = self.fc(x)
+        y = self.conv_cls(x=x, edge_index=edge_index, edge_attr=edge_attr)
+        # y = self.fc(x)
 
         return y, x
 
@@ -86,7 +83,9 @@ class GAT(torch.nn.Module):
             self.train()
             out, _ = self.forward(data.x, data.edge_index, data.edge_attr)
             loss = F.cross_entropy(
-                out[data.train_mask], data.y[data.train_mask], weight=data.class_weights
+                out[data.train_mask],
+                data.y[data.train_mask],
+                weight=data.class_weights,
             )
 
             optimizer.zero_grad()
@@ -138,12 +137,15 @@ class GAT(torch.nn.Module):
         return latent
 
     @torch.no_grad()
-    def get_predictions(self, data, mask):
+    def get_predictions(self, data, mask=None):
         self.eval()
         pred, _ = self.forward(data.x, data.edge_index)
         pred = pred.argmax(dim=-1)
 
-        return pred[mask].cpu().numpy()
+        if mask is not None:
+            return pred[mask].cpu().numpy()
+
+        return pred.cpu().numpy()
 
 
 class Params_GNN:

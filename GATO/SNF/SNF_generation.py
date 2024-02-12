@@ -12,11 +12,13 @@ from utils.data import (
     get_data,
     get_pam50_labels,
 )
-import pandas as pd
 import numpy as np
 import snf
 from torch_geometric.utils import to_edge_index
 import gower as gw
+from utils.settings import N_FOLDS, METABRIC_PATH, REMOVE_UNKNOWN, DEVICE
+
+METABRIC_PATH = os.path.join("../", METABRIC_PATH)
 
 
 def get_edge_index(snf_path, threshold=None, N_largest=None):
@@ -42,12 +44,6 @@ def calc_edge_index(X, threshold=None, N_largest=None):
     return to_edge_index((torch.tensor(X, dtype=torch.float).to_sparse()))
 
 
-SEED = 42
-N_FOLDS = 5
-METABRIC_PATH = "../data/MBdata_33CLINwMiss_1KfGE_1KfCNA.csv"
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -71,7 +67,11 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    metabric = get_data(METABRIC_PATH, complete_metabric_path=METABRIC_PATH)
+    metabric = get_data(
+        METABRIC_PATH,
+        remove_unknown=REMOVE_UNKNOWN,
+        complete_metabric_path=METABRIC_PATH,
+    )
     omics_combinations = args.omics.split(",")
 
     for omics_types in omics_combinations:
@@ -131,11 +131,13 @@ if __name__ == "__main__":
             adj_all = []
             for name in omics_names:
                 match name:
-                    case "CLI":
-                        adj_all.append(gw.gower_matrix(metabric["CLI"]))
-                    case _:
+                    case "RNA":
                         adj_all.append(
                             snf.make_affinity(metabric[name], metric="correlation")
+                        )
+                    case _:
+                        adj_all.append(
+                            snf.make_affinity(metabric[name], metric="hamming")
                         )
             if len(adj_all) > 1:
                 snf_all = snf.compute.snf(adj_all)

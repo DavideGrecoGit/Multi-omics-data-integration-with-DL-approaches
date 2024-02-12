@@ -3,19 +3,27 @@ import time
 import os
 import torch
 import torch.nn as nn
-from networks.VAEs import Params_VAE, VAE
-from networks.GNNs import Params_GNN, GAT
-from GATO.utils.data import (
-    get_data,
-    get_pam50_labels,
-    plot_latent_space,
-    plot_confusion_matrix,
-)
 import pandas as pd
 import numpy as np
 from torch_geometric.data import Data
 import snf
 from torch_geometric.utils import to_edge_index
+from sklearn.utils.class_weight import compute_class_weight
+from networks.VAEs import Params_VAE, VAE
+from networks.GNNs import Params_GNN, GAT
+from utils.data import (
+    get_data,
+    plot_latent_space,
+    plot_confusion_matrix,
+)
+from utils.settings import (
+    REMOVE_UNKNOWN,
+    METABRIC_PATH,
+    N_FOLDS,
+    FILE_NAME,
+    FOLD_DIR,
+    DEVICE,
+)
 
 
 def get_edge_index(snf_path, threshold=None, N_largest=None):
@@ -78,17 +86,6 @@ def get_fold_mask(fold_path, metabric, remove_unknown=True):
     return np.array(metabric["METABRIC_ID"].isin(kfold["METABRIC_ID"]))
 
 
-SEED = 42
-N_FOLDS = 5
-K = 5
-FOLD_DIR = "./data/5-fold_pam50stratified/"
-FILE_NAME = "MBdata_33CLINwMiss_1KfGE_1KfCNA"
-METABRIC_PATH = "./data/MBdata_33CLINwMiss_1KfGE_1KfCNA.csv"
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-CLASSES = 5
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -114,7 +111,7 @@ if __name__ == "__main__":
         "-remove_unknown",
         help="Remove samples with unkown Ground Truth class",
         type=bool,
-        default=True,
+        default=REMOVE_UNKNOWN,
     )
 
     parser.add_argument("-m", help="Model name", type=str, default="GAT")
@@ -126,7 +123,7 @@ if __name__ == "__main__":
     file_name = "MBdata_33CLINwMiss_1KfGE_1KfCNA"
     id = time.strftime("%m%d%H%M%S", time.gmtime())
 
-    metabric = get_data(METABRIC_PATH)
+    metabric = get_data(METABRIC_PATH, args.remove_unknown)
     omics_combinations = args.omics.split(",")
 
     for omics_types in omics_combinations:
@@ -191,23 +188,17 @@ if __name__ == "__main__":
 
                     latents.append(z)
 
-                snf_path = f"/home/davide/Desktop/Projects/Multi-omics-data-integration-with-DL-approaches/GATO/data/SNF/fold_{k}/snf_{'_'.join(omics_names)}_latent.csv"
+                snf_path = f"./data/SNF/fold_{k}/snf_{'_'.join(omics_names)}_latent.csv"
 
                 edge_index, edge_attr = get_edge_index(
                     snf_path, N_largest=args.edge_number
                 )
 
-                gnn_params.input_dim = latent_dim * len(omics_names)
                 x = np.hstack(latents)
             else:
-                input_dim = 0
-                for name in omics_names:
-                    input_dim = input_dim + metabric[name].shape[1]
-
-                gnn_params.input_dim = input_dim
                 x = np.hstack([metabric[name] for name in omics_names])
 
-                snf_path = f"/home/davide/Desktop/Projects/Multi-omics-data-integration-with-DL-approaches/GATO/data/SNF/snf_{'_'.join(omics_names)}.csv"
+                snf_path = f"./data/SNF/snf_{'_'.join(omics_names)}.csv"
                 edge_index, edge_attr = get_edge_index(
                     snf_path, N_largest=args.edge_number
                 )
@@ -221,20 +212,26 @@ if __name__ == "__main__":
             dataset = Data(
                 x=torch.tensor(x, dtype=torch.float32),
                 edge_index=edge_index,
-                # edge_attr=edge_attr,
+                edge_attr=edge_attr,
                 y=torch.tensor(y, dtype=torch.long),
             )
 
-            dataset.pam50_labels = get_pam50_labels(metabric["pam50"])
+            dataset.pam50_labels = metabric["pam50_labels"]
             dataset.pam50 = metabric["pam50"]
+
+            print(metabric["icnp"])
 
             dataset.train_mask = torch.tensor(train_mask, dtype=torch.bool)
             dataset.test_mask = torch.tensor(test_mask, dtype=torch.bool)
+            gnn_params.n_classes = len(dataset.pam50_labels)
+            gnn_params.input_dim = dataset.x.shape[1]
 
             df = pd.DataFrame(dataset.y[dataset.train_mask], columns=["gt_classes"])
-            class_weights = len(df["gt_classes"]) / df["gt_classes"].value_counts()
+            class_weights = len(df["gt_classes"]) / (
+                gnn_params.n_classes * df["gt_classes"].value_counts()
+            )
             dataset.class_weights = torch.tensor(
-                class_weights.to_list(), dtype=torch.float
+                class_weights.sort_index().to_list(), dtype=torch.float
             )
 
             model = GAT(gnn_params).to(DEVICE)
@@ -255,7 +252,8 @@ if __name__ == "__main__":
 
             plot_latent_space(
                 model.get_latent_space(data),
-                data.y.cpu().numpy(),
+                # data.y.cpu().numpy(),
+                dataset.pam50,
                 os.path.join(save_path, f"{args.m}_latent.jpg"),
             )
 
@@ -263,6 +261,7 @@ if __name__ == "__main__":
                 data.y[data.test_mask].cpu().numpy(),
                 model.get_predictions(data, data.test_mask),
                 os.path.join(save_path, f"{args.m}_cm.jpg"),
+                labels=dataset.pam50_labels,
             )
 
             torch.save(model.state_dict(), os.path.join(save_path, f"{args.m}.pth"))
@@ -273,6 +272,13 @@ if __name__ == "__main__":
 
             train_embed = model.get_latent_space(data, train_save_path)
             test_embed = model.get_latent_space(data, test_save_path)
+
+            # Predictions
+            pred = model.get_predictions(data)
+            # data_to_save = np.column_stack(data.y.cpu().numpy(), pred)
+            data_to_save = {"GT": data.y.cpu().numpy(), "Pred": pred}
+            df = pd.DataFrame.from_dict(data_to_save)
+            df.to_csv(os.path.join(save_path, "predictions.csv"), index=False)
 
 means = np.array(acc_scores).mean(axis=0)
 stds = np.array(acc_scores).std(axis=0)

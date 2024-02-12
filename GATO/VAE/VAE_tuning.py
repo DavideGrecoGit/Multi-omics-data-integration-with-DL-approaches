@@ -16,12 +16,10 @@ from networks.VAEs import VAE, Params_VAE
 from classifiers import Benchmark_Classifier
 import argparse
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-SEED = 42
-METABRIC_PATH = "../data/MBdata_33CLINwMiss_1KfGE_1KfCNA.csv"
-FOLD_DIR = "../data/5-fold_pam50stratified/"
-FILE_NAME = "MBdata_33CLINwMiss_1KfGE_1KfCNA"
-N_FOLDS = 5
+from utils.settings import SEED, DEVICE, METABRIC_PATH, FOLD_DIR, FILE_NAME, N_FOLDS
+
+METABRIC_PATH = os.path.join("../", METABRIC_PATH)
+FOLD_DIR = os.path.join("../", FOLD_DIR)
 
 
 def get_activation_fn(trial, activation_functions=None):

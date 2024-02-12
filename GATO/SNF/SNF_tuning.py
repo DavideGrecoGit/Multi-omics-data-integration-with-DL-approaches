@@ -5,9 +5,8 @@ DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, DIR)
 
 
-from GATO.utils.data import get_data, get_pam50_labels
+from utils.data import get_data, get_pam50_labels
 import os
-import torch
 import numpy as np
 import snf
 from snf import compute
@@ -16,9 +15,9 @@ from sklearn.metrics import silhouette_score
 import argparse
 import time
 
-SEED = 42
-METABRIC_PATH = "../data/MBdata_33CLINwMiss_1KfGE_1KfCNA.csv"
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+from utils.settings import METABRIC_PATH
+
+METABRIC_PATH = os.path.join("../", METABRIC_PATH)
 
 
 def compute_silhoutte(

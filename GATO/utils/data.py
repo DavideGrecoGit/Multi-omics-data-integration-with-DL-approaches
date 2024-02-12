@@ -1,13 +1,13 @@
 import pandas as pd
 import numpy as np
+import os
 from torch.utils.data import Dataset
 import torch
 from sklearn.manifold import TSNE
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
 import seaborn as sns
-
-SEED = 42
+from utils.settings import SEED, REMOVE_UNKNOWN, METABRIC_PATH
 
 
 class Omics(Dataset):
@@ -55,18 +55,6 @@ def plot_confusion_matrix(y_true, pred, save_path, labels=None, normalize="true"
     cm_display = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
     cm_display.plot().figure_.savefig(save_path)
     plt.close()
-
-
-def get_pam50_labels(data):
-    val_to_cat = {}
-    cat = []
-    index = 0
-    for val in data:
-        if val not in val_to_cat:
-            val_to_cat[val] = index
-            cat.append(val)
-            index += 1
-    return cat
 
 
 def get_fold_mask(fold_path, metabric, remove_unknown=True):
@@ -128,8 +116,8 @@ def normalizeRNA(*args):
 
 def get_data(
     metabric_path,
-    remove_unknown=True,
-    complete_metabric_path="./data/MBdata_33CLINwMiss_1KfGE_1KfCNA.csv",
+    remove_unknown=REMOVE_UNKNOWN,
+    complete_metabric_path=METABRIC_PATH,
 ):
     """
     Source https://github.com/CancerAI-CL/IntegrativeVAEs.git
@@ -158,7 +146,11 @@ def get_data(
     d["RNA"] = normalizeRNA(d["RNA"])
     d["CNA"] = (cna.astype(np.float32).values + 2.0) / 4.0
     d["icnp"] = to_categorical(d["ic"], dtype="ic")
-    d["pam50np"] = to_categorical(d["pam50"])
+
+    # d["pam50np"] = to_categorical(d["pam50"])
+    pam_cat = data[["Pam50Subtype"]].astype("category")
+    d["pam50np"] = pam_cat["Pam50Subtype"].cat.codes.to_numpy()
+    d["pam50_labels"] = pam_cat["Pam50Subtype"].cat.categories.to_list()
     d["ernp"] = to_categorical(d["er"])
     d["prnp"] = to_categorical(d["pr"])
     d["her2np"] = to_categorical(d["her2"])
@@ -199,7 +191,11 @@ def get_data(
     # Numerical binned to arbitrary ranges then one-hot dummies
     metabric_id = complete_data[["METABRIC_ID"]]
     aad = pd.get_dummies(
-        pd.cut(complete_data["NPI"], 10, labels=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+        pd.cut(
+            complete_data["Age_At_Diagnosis"],
+            10,
+            labels=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        ),
         prefix="aad",
         dummy_na=True,
     )

@@ -4,20 +4,15 @@ import optuna
 from optuna.samplers import TPESampler
 import torch
 import torch.nn as nn
-from GATO.utils.data import get_data, get_pam50_labels
-from networks.GNNs import GAT, Params_GNN
 import argparse
 import pandas as pd
 from torch_geometric.data import Data
 import snf
 from torch_geometric.utils import to_edge_index
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-SEED = 42
-METABRIC_PATH = "./data/MBdata_33CLINwMiss_1KfGE_1KfCNA.csv"
-FOLD_DIR = "./data/5-fold_pam50stratified/"
-FILE_NAME = "MBdata_33CLINwMiss_1KfGE_1KfCNA"
-N_FOLDS = 5
+from utils.data import get_data, get_pam50_labels
+from networks.GNNs import GAT, Params_GNN
+from utils.settings import DEVICE, SEED, METABRIC_PATH, FOLD_DIR, FILE_NAME, N_FOLDS
 
 
 def get_edge_index(snf_path, threshold=None, N_largest=None):
@@ -92,109 +87,105 @@ def define_hyperparams(trial):
 
 
 def objective(trial):
-    # try:
-    (
-        lr,
-        wd,
-        d_p,
-        activation_fn,
-        ds,
-        ls,
-        loss_fn,
-        n_edges,
-        use_edge_attr,
-    ) = define_hyperparams(trial)
-    gnn_params = Params_GNN(
-        None,
-        ds,
-        ls,
-        n_edges,
-        epochs=50,
-        lr=lr,
-        weight_decay=wd,
-        loss_fn=loss_fn,
-        d_p=d_p,
-        activation_fn=activation_fn,
-    )
+    try:
+        (
+            lr,
+            wd,
+            d_p,
+            activation_fn,
+            ds,
+            ls,
+            loss_fn,
+            n_edges,
+            use_edge_attr,
+        ) = define_hyperparams(trial)
 
-    f1_scores = []
-
-    for k in range(1, N_FOLDS + 1):
-        print(f"=== FOLD {k} ===")
-
-        # Get pre-processed data
-        train_mask = get_fold_mask(
-            os.path.join(FOLD_DIR, f"fold{k}", FILE_NAME + "_train.csv"), metabric
-        )
-        test_mask = get_fold_mask(
-            os.path.join(FOLD_DIR, f"fold{k}", FILE_NAME + "_test.csv"), metabric
+        gnn_params = Params_GNN(
+            None,
+            ds,
+            ls,
+            n_edges,
+            epochs=50,
+            lr=lr,
+            weight_decay=wd,
+            loss_fn=loss_fn,
+            d_p=d_p,
+            activation_fn=activation_fn,
         )
 
-        input_dim = 0
-        for name in OMICS_NAMES:
-            if name == "CLI":
-                input_dim = input_dim + 350
-            else:
-                input_dim = input_dim + 1000
+        f1_scores = []
 
-        gnn_params.input_dim = input_dim
-        x = np.hstack([metabric[name] for name in OMICS_NAMES])
+        for k in range(1, N_FOLDS + 1):
+            print(f"=== FOLD {k} ===")
 
-        snf_path = f"/home/davide/Desktop/Projects/Multi-omics-data-integration-with-DL-approaches/GATO/data/SNF/snf_{'_'.join(OMICS_NAMES)}.csv"
-        edge_index, edge_attr = get_edge_index(snf_path, N_largest=args.edge_number)
+            # Get pre-processed data
+            train_mask = get_fold_mask(
+                os.path.join(FOLD_DIR, f"fold{k}", FILE_NAME + "_train.csv"), metabric
+            )
+            test_mask = get_fold_mask(
+                os.path.join(FOLD_DIR, f"fold{k}", FILE_NAME + "_test.csv"), metabric
+            )
 
-        if n_edges == 0:
-            edge_index = torch.tensor([[], []], dtype=torch.long)
-            edge_attr = None
+            x = np.hstack([metabric[name] for name in OMICS_NAMES])
 
-        if not use_edge_attr:
-            edge_attr = None
+            snf_path = f"/home/davide/Desktop/Projects/Multi-omics-data-integration-with-DL-approaches/GATO/data/SNF/snf_{'_'.join(OMICS_NAMES)}.csv"
+            edge_index, edge_attr = get_edge_index(snf_path, N_largest=args.edge_number)
 
-        y = metabric["pam50np"]
+            if n_edges == 0:
+                edge_index = torch.tensor([[], []], dtype=torch.long)
+                edge_attr = None
 
-        dataset = Data(
-            x=torch.tensor(x, dtype=torch.float32),
-            edge_index=edge_index,
-            edge_attr=edge_attr,
-            y=torch.tensor(y, dtype=torch.long),
-        )
+            if not use_edge_attr:
+                edge_attr = None
 
-        dataset.pam50_labels = get_pam50_labels(metabric["pam50"])
-        dataset.pam50 = metabric["pam50"]
+            y = metabric["pam50np"]
 
-        dataset.train_mask = torch.tensor(train_mask, dtype=torch.bool)
-        dataset.test_mask = torch.tensor(test_mask, dtype=torch.bool)
+            dataset = Data(
+                x=torch.tensor(x, dtype=torch.float32),
+                edge_index=edge_index,
+                edge_attr=edge_attr,
+                y=torch.tensor(y, dtype=torch.long),
+            )
 
-        df = pd.DataFrame(dataset.y[dataset.train_mask], columns=["gt_classes"])
-        class_weights = len(df["gt_classes"]) / df["gt_classes"].value_counts()
-        dataset.class_weights = torch.tensor(class_weights.to_list(), dtype=torch.float)
+            dataset.pam50_labels = get_pam50_labels(metabric["pam50"])
+            dataset.pam50 = metabric["pam50"]
 
-        model = GAT(gnn_params).to(DEVICE)
+            dataset.train_mask = torch.tensor(train_mask, dtype=torch.bool)
+            dataset.test_mask = torch.tensor(test_mask, dtype=torch.bool)
 
-        optimizer = torch.optim.Adam(
-            model.parameters(),
-            lr=gnn_params.lr,
-            weight_decay=gnn_params.weight_decay,
-        )
-        data = dataset.to(DEVICE)
+            df = pd.DataFrame(dataset.y[dataset.train_mask], columns=["gt_classes"])
+            class_weights = len(df["gt_classes"]) / df["gt_classes"].value_counts()
+            dataset.class_weights = torch.tensor(
+                class_weights.to_list(), dtype=torch.float
+            )
 
-        model.train_loop(data, optimizer, 50)
-        accTest, f1Test = model.validate(data, data.test_mask)
-        f1 = np.mean(f1Test)
+            gnn_params.input_dim = dataset.x.shape[1]
+            gnn_params.n_classes = torch.unique(dataset.y).shape[0]
+            model = GAT(gnn_params).to(DEVICE)
 
-        print(f"Fold: {k}, F1 score: {f1}")
+            optimizer = torch.optim.Adam(
+                model.parameters(),
+                lr=gnn_params.lr,
+                weight_decay=gnn_params.weight_decay,
+            )
+            data = dataset.to(DEVICE)
 
-        f1_scores.append(f1)
+            model.train_loop(data, optimizer, 50)
+            accTest, f1Test = model.validate(data, data.test_mask)
+            f1 = np.mean(f1Test)
 
-        trial.report(f1, k - 1)
-        if trial.should_prune():
-            raise optuna.exceptions.TrialPruned()
+            print(f"Fold: {k}, F1 score: {f1}")
 
-    return np.mean(np.array(f1_scores))
+            f1_scores.append(f1)
 
+            trial.report(f1, k - 1)
+            if trial.should_prune():
+                raise optuna.exceptions.TrialPruned()
 
-# except:
-#     return 0
+        return np.mean(np.array(f1_scores))
+
+    except:
+        return 0
 
 
 if __name__ == "__main__":

@@ -2,12 +2,12 @@ import torch
 import torch.nn as nn
 from typing import Literal
 from torch_geometric.logging import log
-from losses import compute_vae_loss
+from networks.losses import compute_vae_loss
 import numpy as np
 import os
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-SEED = 42
+from utils.settings import DEVICE
+
 _REGULARISATION = Literal["mmd", "kld", "_"]
 _MODES = Literal["CNA", "RNA", "CLI"]
 

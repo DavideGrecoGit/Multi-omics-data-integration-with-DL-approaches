@@ -6,7 +6,8 @@ MOGDx/
 MOGONET/
 MoGCN_Evaluation/data
 MoGCN_Evaluation/model
-data
+Datasets/
+Models/
 prototype/checkpoints
 prototype/results
 GATO/
@@ -15,6 +16,17 @@ Models/
 Hyperparameters_tuning/results
 TCGA-BRCA/
 *.pdf
+Hyperparameters_tuning/data
+IntegrativeVAE/results
+GATO/results
+GATO/data/SNF
+MOMTEG/
+prototype/
+*.pth
+*.db
+output/
+*.pdf
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

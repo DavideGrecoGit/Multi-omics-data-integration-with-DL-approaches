@@ -241,7 +241,6 @@ def get_data(
             ims,
             lnp,
             grade,
-            size,
             hist,
             cellularity,
             ct,

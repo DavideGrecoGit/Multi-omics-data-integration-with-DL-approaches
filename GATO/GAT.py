@@ -219,8 +219,6 @@ if __name__ == "__main__":
             dataset.pam50_labels = metabric["pam50_labels"]
             dataset.pam50 = metabric["pam50"]
 
-            print(metabric["icnp"])
-
             dataset.train_mask = torch.tensor(train_mask, dtype=torch.bool)
             dataset.test_mask = torch.tensor(test_mask, dtype=torch.bool)
             gnn_params.n_classes = len(dataset.pam50_labels)

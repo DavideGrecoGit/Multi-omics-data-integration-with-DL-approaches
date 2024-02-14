@@ -1,0 +1,17 @@
+{
+    "seed": 42,
+    "latent_path": "./data/MoGCN_results/latent_data.csv",
+    "pam50_path": "./data/MoGCN_data/sample_classes.csv",
+    "snf_path": "./data/MoGCN_results/SNF_fused_matrix.csv",
+    "surv_path": "./data/MoGCN_data/surv_data.csv",
+    "train_path": "./data/MoGCN_data/train_sample.csv",
+    "test_path": "./data/MoGCN_data/test_sample.csv",
+    "n_classes": null,
+    "n_kfolds": 5,
+    "epochs": 100,
+    "gnn_input_dim": null,
+    "gnn_latent_dim": 64,
+    "gnn_dp": 0.5,
+    "gnn_lr": 0.001,
+    "gnn_wd": 0.01
+}

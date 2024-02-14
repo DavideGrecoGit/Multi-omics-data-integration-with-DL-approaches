@@ -2,11 +2,16 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 from torch_geometric.logging import log
-from torch_geometric.nn import GATv2Conv, GraphNorm
+from torch_geometric.nn import GATv2Conv, GraphNorm, GCNConv
 from sklearn.metrics import accuracy_score, f1_score
 import os
 import numpy as np
 from torch_geometric.nn import GCNConv
+
+
+class MLP(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
 
 
 class GAT(torch.nn.Module):
@@ -21,38 +26,38 @@ class GAT(torch.nn.Module):
         # self.norm = GraphNorm(params.input_dim)
 
         if params.dense_dim > 0:
-            self.conv_dense = GATv2Conv(
+            self.conv_dense = GCNConv(
                 params.input_dim,
                 params.dense_dim,
-                heads=params.heads,
-                concat=False,
+                # heads=params.heads,
+                # concat=False,
                 dropout=params.d_p,
                 edge_dim=1,
             )
 
-            self.conv_latent = GATv2Conv(
+            self.conv_latent = GCNConv(
                 params.dense_dim,
                 params.latent_dim,
-                heads=params.heads,
-                concat=False,
+                # heads=params.heads,
+                # concat=False,
                 dropout=params.d_p,
                 edge_dim=1,
             )
         else:
-            self.conv_latent = GATv2Conv(
+            self.conv_latent = GCNConv(
                 params.input_dim,
                 params.latent_dim,
-                heads=params.heads,
+                # heads=params.heads,
                 dropout=params.d_p,
                 edge_dim=1,
             )
 
         # self.norm_cls = GraphNorm(params.latent_dim * params.heads)
-        self.conv_cls = GATv2Conv(
+        self.conv_cls = GCNConv(
             params.latent_dim,
             params.n_classes,
-            heads=1,
-            concat=False,
+            # heads=1,
+            # concat=False,
             dropout=params.d_p,
             edge_dim=1,
         )
@@ -63,17 +68,17 @@ class GAT(torch.nn.Module):
         # x = self.norms[i](x)
         if self.dense_dim > 0:
             x = F.dropout(x, p=self.d_p, training=self.training)
-            x = self.conv_dense(x=x, edge_index=edge_index, edge_attr=edge_attr)
+            x = self.conv_dense(x=x, edge_index=edge_index, edge_weight=edge_attr)
             x = self.activation(x)
 
         # x = self.norm(x)
         x = F.dropout(x, p=self.d_p, training=self.training)
-        x = self.conv_latent(x=x, edge_index=edge_index, edge_attr=edge_attr)
+        x = self.conv_latent(x=x, edge_index=edge_index, edge_weight=edge_attr)
         x = self.activation(x)
 
         # x = self.norm_cls(x)
         x = F.dropout(x, p=self.d_p, training=self.training)
-        y = self.conv_cls(x=x, edge_index=edge_index, edge_attr=edge_attr)
+        y = self.conv_cls(x=x, edge_index=edge_index, edge_weight=edge_attr)
         # y = self.fc(x)
 
         return y, x
@@ -85,7 +90,7 @@ class GAT(torch.nn.Module):
             loss = F.cross_entropy(
                 out[data.train_mask],
                 data.y[data.train_mask],
-                weight=data.class_weights,
+                # weight=data.class_weights,
             )
 
             optimizer.zero_grad()

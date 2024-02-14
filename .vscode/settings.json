@@ -1,7 +1,11 @@
 {
     "[python]": {
-        "editor.defaultFormatter": "ms-python.black-formatter"
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
     },
     "python.formatting.provider": "none",
-    "workbench.editor.enablePreview": false
+    "workbench.editor.enablePreview": false,
+    "java.saveActions.organizeImports": true
 }

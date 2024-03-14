@@ -1,18 +1,18 @@
+import argparse
 import os
+
 import numpy as np
 import optuna
-from optuna.samplers import TPESampler
+import pandas as pd
+import snf
 import torch
 import torch.nn as nn
-import argparse
-import pandas as pd
-from torch_geometric.data import Data
-import snf
-from torch_geometric.utils import to_edge_index
-
-from utils.data import get_data, get_pam50_labels
 from networks.GNNs import GAT, Params_GNN
-from utils.settings import DEVICE, SEED, METABRIC_PATH, FOLD_DIR, FILE_NAME, N_FOLDS
+from optuna.samplers import TPESampler
+from torch_geometric.data import Data
+from torch_geometric.utils import to_edge_index
+from utils.data import get_data, get_pam50_labels
+from utils.settings import DEVICE, FILE_NAME, FOLD_DIR, METABRIC_PATH, N_FOLDS, SEED
 
 
 def get_edge_index(snf_path, threshold=None, N_largest=None):

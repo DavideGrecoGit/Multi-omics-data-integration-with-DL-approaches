@@ -69,24 +69,31 @@ def get_ordered_class_lables(
 
 
 def get_discrete_time(surv_df, n_buckets):
-    buckets = np.linspace(0, surv_df["Survival_in_days"].max(), n_buckets + 1)
+    """
+    Get y_true for survival prediction based on T and E
+    Source OmiEmbed
+    """
+
+    time_points = np.linspace(
+        0, surv_df["Survival_in_days"].max() * (1.1), n_buckets + 1
+    )
 
     y_true = []
 
     for i, (t, e) in enumerate(zip(surv_df["Survival_in_days"], surv_df["Status"])):
         y = np.zeros(n_buckets + 1)
-        min_abs_value = [abs(b - t) for b in buckets]
-        index = np.argmin(min_abs_value)
+        dist_to_time_points = [abs(t - point) for point in time_points[:-1]]
+        index = np.argmin(dist_to_time_points)
 
-        if e:  # death occurs at t=2 -> y = [0,0,1,0,0,0]
+        if e:  # ie death occurs at t=2 -> y = [0,0,1,0,0,0]
             y[index] = 1.0
 
         else:
-            y[(index):] = 1.0  # censor occurs at t=2 -> y = [0,0,1,1,1,1]
+            y[index:] = 1.0  # ie censor occurs at t=2 -> y = [0,0,1,1,1,1]
         y_true.append(y)
 
     # y_true = torch.tensor(y_true, dtype=torch.int)
-    return np.array(y_true)
+    return np.array(y_true), time_points
 
 
 def get_dataset(config, gt_df=None, latent_df=None, adj=None):
@@ -106,8 +113,9 @@ def get_dataset(config, gt_df=None, latent_df=None, adj=None):
     edge_index, edge_attr = get_edge_index(adj, N_largest=config["n_edges"])
 
     y = []
+    time_points = []
     if config["cls_loss_weight"] != 1:
-        y = get_discrete_time(gt_df, config["n_buckets"])
+        y, time_points = get_discrete_time(gt_df, config["n_buckets"])
 
     # dataset
     dataset = Data(
@@ -121,6 +129,7 @@ def get_dataset(config, gt_df=None, latent_df=None, adj=None):
     # dataset.surv_mask = surv_mask
     dataset.E = gt_df["Status"]
     dataset.T = gt_df["Survival_in_days"]
+    dataset.time_points = time_points
 
     dataset.class_labels = get_ordered_class_lables(gt_df)
     dataset.gt_labels = gt_df["Pam50 Subtype"]

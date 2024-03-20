@@ -39,8 +39,8 @@ def objective(trial):
 
     # metrics lists
     metrics = []
-    custom_metrics = []
-
+    epochs = []
+    c_index = []
     try:
 
         for k in range(config["n_kfolds"]):
@@ -56,16 +56,18 @@ def objective(trial):
             data = dataset.to(DEVICE)
 
             # Train & val
-            val_acc, val_f1, val_c, best_epoch = model.train_loop(data)
+            val_acc, val_f1, val_c, val_ibs, best_epoch = model.train_loop(data)
 
-            custom_metrics.append(best_epoch)
+            epochs.append(best_epoch)
 
             if config["cls_loss_weight"] == 0:
-                metrics.append(val_c)
+                metrics.append(val_ibs)
+                c_index.append(val_c)
             if config["cls_loss_weight"] == 1:
                 metrics.append(val_f1)
             if config["cls_loss_weight"] != 0 and config["cls_loss_weight"] != 1:
-                metrics.append([val_f1, val_c])
+                metrics.append([val_f1, val_ibs])
+                c_index.append(val_c)
 
         if config["cls_loss_weight"] == 0 or config["cls_loss_weight"] == 1:
             std = np.array(metrics).std()
@@ -75,16 +77,21 @@ def objective(trial):
             std = np.array(metrics).std(axis=0).tolist()
             mean = np.array(metrics).mean(axis=0).tolist()
 
-        trial.set_user_attr("avg_best_epoch", np.array(custom_metrics).mean())
+        if len(c_index) != 0:
+            trial.set_user_attr("avg_c_index", np.array(c_index).mean())
+
+        trial.set_user_attr("avg_best_epoch", np.array(epochs).mean())
         trial.set_user_attr("avg_std", std)
 
         return mean
     except Exception as e:
         print(e)
-        if config["cls_loss_weight"] == 0 or config["cls_loss_weight"] == 1:
+        if config["cls_loss_weight"] == 1:
             return [0]
+        elif config["cls_loss_weight"] == 0:
+            return [1]
         else:
-            return [0, 0]
+            return [0, 1]
 
 
 if __name__ == "__main__":
@@ -172,8 +179,7 @@ if __name__ == "__main__":
         sampler = TPESampler(seed=config["seed"])
 
     # Select study: single or multiple values
-    if config["cls_loss_weight"] == 0 or config["cls_loss_weight"] == 1:
-
+    if config["cls_loss_weight"] == 1:
         study = optuna.create_study(
             direction="maximize",
             study_name=study_name,
@@ -181,9 +187,17 @@ if __name__ == "__main__":
             sampler=sampler,
             load_if_exists=True,
         )
+    elif config["cls_loss_weight"] == 0:
+        study = optuna.create_study(
+            direction="minimize",
+            study_name=study_name,
+            storage=storage_path,
+            sampler=sampler,
+            load_if_exists=True,
+        )
     else:
         study = optuna.create_study(
-            directions=["maximize", "maximize"],
+            directions=["maximize", "minimize"],
             study_name=study_name,
             storage=storage_path,
             sampler=sampler,

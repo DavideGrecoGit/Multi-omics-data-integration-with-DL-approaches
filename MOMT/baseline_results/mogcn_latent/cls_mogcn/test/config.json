@@ -1,0 +1,28 @@
+{
+    "seed": 42,
+    "gt_path": "./data/gt_data.csv",
+    "train_path": "./data/train_strat_id.csv",
+    "test_path": "./data/test_strat_id.csv",
+    "latent_path": "./data/latent_data.csv",
+    "snf_path": "./data/snf_data.csv",
+    "k_fold_path": "./data/5_fold/",
+    "n_kfolds": 5,
+    "epochs": 126,
+    "min_epochs": 10,
+    "patience": 20,
+    "n_classes": 4,
+    "input_dim": 100,
+    "cls_loss_weight": 1,
+    "net_type": "MoGCN",
+    "n_edges": null,
+    "lr": 0.001,
+    "wd": 0.01,
+    "color_codes": {
+        "LumA": "tab:red",
+        "LumB": "tab:orange",
+        "Basal": "tab:blue",
+        "Her2": "tab:green",
+        "Normal": "tab:black"
+    },
+    "surv_loss_weight": 0
+}

@@ -11,14 +11,28 @@ from sksurv.linear_model import CoxPHSurvivalAnalysis
 from sksurv.nonparametric import kaplan_meier_estimator
 
 
-def plot_latent_space(latent, pam_labels, config, save_path):
+def plot_pam50_latent_space(latent, pam_labels, config, save_path):
     z = TSNE(n_components=2, random_state=config["seed"]).fit_transform(latent)
 
     sns_plot = sns.scatterplot(
         x=z[:, 0],
         y=z[:, 1],
         hue=pam_labels,
-        palette=sns.color_palette("bright")[: config["n_classes"]],
+        palette=sns.color_palette("bright", n_colors=config["n_classes"]),
+    )
+
+    plt.savefig(save_path)
+    plt.close()
+
+
+def plot_surv_latent_space(latent, risk, config, save_path):
+    z = TSNE(n_components=2, random_state=config["seed"]).fit_transform(latent)
+
+    sns_plot = sns.scatterplot(
+        x=z[:, 0],
+        y=z[:, 1],
+        hue=risk,
+        palette=sns.color_palette("rocket_r", as_cmap=True),
     )
 
     plt.savefig(save_path)
@@ -122,8 +136,9 @@ def plot_km(T, E, pam50, save_path, conf=False):
             )
 
     plt.ylim(0, 1)
-    plt.ylabel(r"est. probability of survival $\hat{S}(t)$")
-    plt.xlabel("time $t$")
+    plt.ylabel(r"est. Survival probability $\hat{S}(t)$")
+    plt.xlabel(r"Days $(t)$")
+    plt.title("Kaplan-Meier survival curve")
     plt.savefig(save_path)
     plt.close()
 

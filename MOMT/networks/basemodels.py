@@ -5,11 +5,15 @@ import torch
 import torch.nn.functional as F
 from networks.losses import MTLR_loss, cross_entropy_loss
 from sklearn.metrics import accuracy_score, f1_score
-from sksurv.metrics import concordance_index_censored
+from sksurv.metrics import (
+    concordance_index_censored,
+    concordance_index_ipcw,
+    integrated_brier_score,
+)
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 from torch_geometric.logging import log
-from torch_geometric.nn import GCNConv
+from torch_geometric.nn import GATv2Conv, GCNConv
 from utils.data import get_tri_matrix
 from utils.utils import EarlyStopper
 
@@ -158,14 +162,14 @@ class BaseModel(nn.Module):
                 train_acc, train_f1 = self.evaluate_cls(data, data.train_mask)
             train_c = None
             if self.config["cls_loss_weight"] != 1:
-                train_c = self.evaluate_surv(data, data.train_mask)
+                train_c, train_ibs = self.evaluate_surv(data, data.train_mask)
 
-            val_acc, val_f1, val_c = None, None, None
+            val_acc, val_f1, val_c, val_ibs = None, None, None, None
             if len(data.val_mask) > 0:
                 if self.config["cls_loss_weight"] != 0:
                     val_acc, val_f1 = self.evaluate_cls(data, data.val_mask)
                 if self.config["cls_loss_weight"] != 1:
-                    val_c = self.evaluate_surv(data, data.val_mask)
+                    val_c, val_ibs = self.evaluate_surv(data, data.val_mask)
 
             if verbose:
                 log(
@@ -177,20 +181,22 @@ class BaseModel(nn.Module):
                     Train_f1=train_f1,
                     Val_f1=val_f1,
                     Train_C=train_c,
+                    Train_IBS=train_ibs,
                     Val_C=val_c,
+                    Val_IBS=val_ibs,
                 )
 
             if (len(data.val_mask) > 0) and earlyStop.check(
-                val_loss, epoch, [val_acc, val_f1, val_c]
+                val_loss, epoch, [val_acc, val_f1, val_c, val_ibs]
             ):
                 if verbose:
                     print(
                         f"Early stopped! Best metrics {earlyStop.best_metrics} at epoch {earlyStop.best_epoch}"
                     )
-                val_acc, val_f1, val_c = earlyStop.best_metrics
+                val_acc, val_f1, val_c, val_ibs = earlyStop.best_metrics
                 break
 
-        return val_acc, val_f1, val_c, earlyStop.best_epoch
+        return val_acc, val_f1, val_c, val_ibs, earlyStop.best_epoch
 
     @torch.no_grad()
     def get_latent_space(self, data, save_path=None):
@@ -221,7 +227,7 @@ class BaseModel(nn.Module):
         return cls_pred
 
     @torch.no_grad()
-    def predict_risk(self, data, mask):
+    def predict_risk(self, data, mask=None):
         """
         Predict the density, survival and hazard function, as well as the risk score
         """
@@ -230,7 +236,10 @@ class BaseModel(nn.Module):
         pred, _ = self.forward(data.x, data.edge_index, data.edge_attr)
         _, surv_pred = pred
 
-        phi = torch.exp(torch.mm(surv_pred[mask], self.tri_matrix_1))
+        if mask is not None:
+            surv_pred = surv_pred[mask]
+
+        phi = torch.exp(torch.mm(surv_pred, self.tri_matrix_1))
         div = torch.repeat_interleave(
             torch.sum(phi, 1).reshape(-1, 1), phi.shape[1], dim=1
         )
@@ -272,11 +281,49 @@ class BaseModel(nn.Module):
         self.eval()
 
         out_pred = self.predict_risk(data, mask)
+        pred_risk = out_pred["risk"].detach().cpu().numpy()
+        pred_survival = out_pred["survival"].detach().cpu().numpy()
 
-        c_index = concordance_index_censored(
-            data.E[mask], data.T[mask], out_pred["risk"].detach().cpu().numpy()
+        train_max = data.T[data.train_mask].max()
+        surv_struct = np.array(
+            list(zip(data.E, data.T)),
+            dtype=[("Status", np.bool_), ("Survival_in_days", np.float32)],
+        )
+
+        c_index = concordance_index_ipcw(
+            surv_struct[data.train_mask], surv_struct[mask], pred_risk, train_max
         )[0]
-        return c_index
+        # c_index = concordance_index_censored(data.E[mask], data.T[mask], pred_risk)[0]
+
+        ibs_score = ibs(data, surv_struct, pred_survival, mask)
+
+        return c_index, ibs_score
+
+
+def ibs(data, surv_struct, pred_survival, mask):
+    # def ibs(true_T, true_E, pred_survival, time_points):
+    """
+    Calculate integrated brier score for survival prediction downstream task
+    Modified version of Omiembed
+    """
+
+    # time points must be within the range of T
+    T = data.T[mask].to_numpy()
+    min_T = T.min()
+    max_T = T.max()
+
+    valid_index = []
+    for i in range(len(data.time_points)):
+        if min_T <= data.time_points[i] <= max_T:
+            valid_index.append(i)
+    time_points = data.time_points[valid_index]
+    pred_survival = pred_survival[:, valid_index]
+
+    result = integrated_brier_score(
+        surv_struct[data.train_mask], surv_struct[mask], pred_survival, time_points
+    )
+
+    return result
 
 
 class MoGCN_GCN(BaseModel):
@@ -308,6 +355,27 @@ class MoGCN_GCN(BaseModel):
 
         self.conv1 = GCNConv(config["input_dim"], hidden_dim)
         self.conv2 = GCNConv(hidden_dim, hidden_dim)
+        self.cls = nn.Linear(hidden_dim, config["n_classes"])
+
+    def forward(self, x, edge_index, edge_weight=None):
+        x = self.conv1(x, edge_index, edge_weight)
+        x = F.elu(x)
+        x = F.dropout(x, p=self.dp, training=self.training)
+        x = self.conv2(x, edge_index, edge_weight)
+        x = F.elu(x)
+        y = F.dropout(x, p=self.dp, training=self.training)
+        y = self.cls(y)
+        return [y, None], x
+
+
+class MoGCN_GAT(BaseModel):
+    def __init__(self, config, hidden_dim=64, dp=0.1):
+        super().__init__(config)
+        self.config = config
+        self.dp = dp
+
+        self.conv1 = GATv2Conv(config["input_dim"], hidden_dim, heads=8, dropout=0.1)
+        self.conv2 = GATv2Conv(hidden_dim * 8, hidden_dim, dropout=0.1, concat=False)
         self.cls = nn.Linear(hidden_dim, config["n_classes"])
 
     def forward(self, x, edge_index, edge_weight=None):

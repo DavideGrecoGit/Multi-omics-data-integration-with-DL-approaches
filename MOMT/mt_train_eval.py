@@ -4,14 +4,15 @@ import time
 
 import pandas as pd
 import torch
-from networks.basemodels import MoGCN_GCN
+from networks.basemodels import MoGCN_GAT, MoGCN_GCN
 from networks.tuning import CustomTuning
 from utils.data import get_bool_mask, get_dataset, get_fold_masks
 from utils.plots import (
     get_chisq,
     plot_confusion_matrix,
     plot_km,
-    plot_latent_space,
+    plot_pam50_latent_space,
+    plot_surv_latent_space,
     save_mean_metrics,
     save_metrics,
 )
@@ -43,7 +44,9 @@ def k_fold_experiment(dataset, config, args):
         data = dataset.to(DEVICE)
 
         # Train & val
-        val_acc, val_f1, val_c, best_epoch = model.train_loop(data, args.verbose)
+        val_acc, val_f1, val_c, val_ibs, best_epoch = model.train_loop(
+            data, args.verbose
+        )
         # val_acc, val_f1, val_c = model.train_loop(data, args.verbose)
 
         if config["cls_loss_weight"] != 0:
@@ -66,16 +69,18 @@ def k_fold_experiment(dataset, config, args):
                 "sd_best_epoch",
             ]
         if config["cls_loss_weight"] == 0:
-            results = [val_c, best_epoch]
+            results = [val_c, val_ibs, best_epoch]
             columns = [
                 "mean_c_index",
                 "sd_c_index",
+                "mean_ibs",
+                "sd_ibs",
                 "mean_best_epoch",
                 "sd_best_epoch",
             ]
         if config["cls_loss_weight"] != 0 and config["cls_loss_weight"] != 1:
             # results = [val_acc, val_f1, val_c]
-            results = [val_acc, val_f1, chi, p_value, val_c, best_epoch]
+            results = [val_acc, val_f1, chi, p_value, val_c, val_ibs, best_epoch]
             columns = [
                 "mean_acc",
                 "sd_acc",
@@ -87,6 +92,8 @@ def k_fold_experiment(dataset, config, args):
                 "sd_p_value",
                 "mean_c_index",
                 "sd_c_index",
+                "mean_ibs",
+                "sd_ibs",
                 "mean_best_epoch",
                 "sd_best_epoch",
             ]
@@ -115,7 +122,7 @@ def test_experiment(dataset, config, args, save_plots=False):
             print(m)
 
     if config["net_type"] == "MoGCN":
-        model = MoGCN_GCN(config)
+        model = MoGCN_GAT(config)
     else:
         model = CustomTuning(config)
 
@@ -132,29 +139,47 @@ def test_experiment(dataset, config, args, save_plots=False):
         # Log-rank test
         chi, p_value = get_chisq(gt_df, model.predict_cls(data), args.verbose)
 
-    c_index = None
+    c_index, ibs = None, None
     if config["cls_loss_weight"] != 1:
-        c_index = model.evaluate_surv(data, data.test_mask)
+        c_index, ibs = model.evaluate_surv(data, data.test_mask)
 
-    metrics = [acc, f1, chi, p_value, c_index]
+    metrics = [acc, f1, chi, p_value, c_index, ibs]
 
     save_metrics(
         metrics,
         save_dir,
-        columns=["acc", "f1", "chisqr", "p_value", "c_index"],
+        columns=["acc", "f1", "chisqr", "p_value", "c_index", "ibs"],
     )
 
     if save_plots:
 
-        plot_latent_space(
+        plot_pam50_latent_space(
             model.get_latent_space(data),
-            # model.predict_cls(data),
             data.gt_labels,
             config,
-            os.path.join(save_dir, "latent_pred.jpg"),
+            os.path.join(save_dir, "latent_pam50_GT.jpg"),
         )
 
+        if config["cls_loss_weight"] != 1:
+            pred = model.predict_risk(data)
+            risk = pred["risk"].detach().cpu().numpy()
+
+            plot_surv_latent_space(
+                model.get_latent_space(data),
+                risk,
+                config,
+                os.path.join(save_dir, "latent_surv_pred.jpg"),
+            )
+
         if config["cls_loss_weight"] != 0:
+            plot_pam50_latent_space(
+                model.get_latent_space(data),
+                model.predict_cls(data),
+                # data.gt_labels,
+                config,
+                os.path.join(save_dir, "latent_pam50.jpg"),
+            )
+
             plot_confusion_matrix(
                 dataset.cls_y.cpu(),
                 model.predict_cls(data),
@@ -163,7 +188,6 @@ def test_experiment(dataset, config, args, save_plots=False):
                 normalize="true",
             )
 
-        if config["cls_loss_weight"] != 1 and config["cls_loss_weight"] != 0:
             plot_km(
                 dataset.T,
                 dataset.E,

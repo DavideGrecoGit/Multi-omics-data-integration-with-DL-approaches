@@ -1,9 +1,9 @@
 {
     "cls_loss_weight": 0,
     "n_buckets": [
-        5,
         15,
-        30
+        128,
+        240
     ],
     "n_edges": [
         null,

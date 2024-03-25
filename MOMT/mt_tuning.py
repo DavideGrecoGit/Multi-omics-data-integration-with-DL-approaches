@@ -57,28 +57,26 @@ def objective(trial):
 
             # Train & val
             val_acc, val_f1, val_c, val_ibs, best_epoch = model.train_loop(data)
+            # Log-rank test
+            chi, p_value = get_chisq(gt_df, model.predict_cls(data), args.verbose)
 
             epochs.append(best_epoch)
 
             if config["cls_loss_weight"] == 0:
-                metrics.append(val_ibs)
-                c_index.append(val_c)
+                metrics.append([val_c, val_ibs])
             if config["cls_loss_weight"] == 1:
                 metrics.append(val_f1)
             if config["cls_loss_weight"] != 0 and config["cls_loss_weight"] != 1:
-                metrics.append([val_f1, val_ibs])
-                c_index.append(val_c)
+                # metrics.append([val_f1, val_c, val_ibs])
+                metrics.append([p_value, val_ibs])
 
-        if config["cls_loss_weight"] == 0 or config["cls_loss_weight"] == 1:
+        if config["cls_loss_weight"] == 1:
             std = np.array(metrics).std()
             mean = np.array(metrics).mean()
 
         else:
             std = np.array(metrics).std(axis=0).tolist()
             mean = np.array(metrics).mean(axis=0).tolist()
-
-        if len(c_index) != 0:
-            trial.set_user_attr("avg_c_index", np.array(c_index).mean())
 
         trial.set_user_attr("avg_best_epoch", np.array(epochs).mean())
         trial.set_user_attr("avg_std", std)
@@ -87,11 +85,12 @@ def objective(trial):
     except Exception as e:
         print(e)
         if config["cls_loss_weight"] == 1:
-            return [0]
+            return [0, 0]
         elif config["cls_loss_weight"] == 0:
-            return [1]
-        else:
             return [0, 1]
+        else:
+            return [1, 1]
+            # return [0, 0, 1]
 
 
 if __name__ == "__main__":
@@ -189,7 +188,7 @@ if __name__ == "__main__":
         )
     elif config["cls_loss_weight"] == 0:
         study = optuna.create_study(
-            direction="minimize",
+            directions=["maximize", "minimize"],
             study_name=study_name,
             storage=storage_path,
             sampler=sampler,
@@ -197,7 +196,8 @@ if __name__ == "__main__":
         )
     else:
         study = optuna.create_study(
-            directions=["maximize", "minimize"],
+            directions=["minimize", "minimize"],
+            # directions=["maximize", "maximize", "minimize"],
             study_name=study_name,
             storage=storage_path,
             sampler=sampler,

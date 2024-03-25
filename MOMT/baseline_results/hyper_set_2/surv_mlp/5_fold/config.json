@@ -7,13 +7,13 @@
     "snf_path": "./data/snf_data.csv",
     "k_fold_path": "./data/5_fold/",
     "n_kfolds": 5,
-    "epochs": 70,
+    "epochs": 100,
     "min_epochs": 10,
-    "patience": 20,
+    "patience": 5,
     "n_classes": 4,
     "input_dim": 100,
     "net_type": "MLP",
-    "cls_loss_weight": 0.8,
+    "cls_loss_weight": 0,
     "n_buckets": 128,
     "n_edges": null,
     "batch_size": 128,
@@ -24,13 +24,14 @@
     "act_fn": "elu",
     "n_heads": null,
     "trunk_ls": 64,
-    "cls_ds": 32,
-    "surv_ds": 32,
+    "cls_ds": null,
+    "surv_ds": 64,
     "color_codes": {
         "LumA": "tab:red",
         "LumB": "tab:orange",
         "Basal": "tab:blue",
         "Her2": "tab:green",
         "Normal": "tab:black"
-    }
+    },
+    "surv_loss_weight": 1
 }

@@ -7,14 +7,14 @@
     "snf_path": "./data/snf_data.csv",
     "k_fold_path": "./data/5_fold/",
     "n_kfolds": 5,
-    "epochs": 70,
+    "epochs": 23,
     "min_epochs": 10,
-    "patience": 20,
+    "patience": 5,
     "n_classes": 4,
     "input_dim": 100,
     "net_type": "MLP",
     "cls_loss_weight": 0.8,
-    "n_buckets": 128,
+    "n_buckets": 240,
     "n_edges": null,
     "batch_size": 128,
     "lr": 0.001,
@@ -32,5 +32,6 @@
         "Basal": "tab:blue",
         "Her2": "tab:green",
         "Normal": "tab:black"
-    }
+    },
+    "surv_loss_weight": 0.19999999999999996
 }

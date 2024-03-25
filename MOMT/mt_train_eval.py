@@ -4,7 +4,7 @@ import time
 
 import pandas as pd
 import torch
-from networks.basemodels import MoGCN_GAT, MoGCN_GCN
+from networks.basemodels import MoGCN_GCN
 from networks.tuning import CustomTuning
 from utils.data import get_bool_mask, get_dataset, get_fold_masks
 from utils.plots import (
@@ -122,7 +122,7 @@ def test_experiment(dataset, config, args, save_plots=False):
             print(m)
 
     if config["net_type"] == "MoGCN":
-        model = MoGCN_GAT(config)
+        model = MoGCN_GCN(config)
     else:
         model = CustomTuning(config)
 

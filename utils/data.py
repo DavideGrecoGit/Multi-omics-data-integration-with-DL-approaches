@@ -3,6 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 import torch
+from sksurv.compare import compare_survival
 from torch_geometric.data import Data
 from torch_geometric.utils import to_edge_index
 
@@ -35,9 +36,10 @@ def get_edge_index(X, N_largest=None):
         X = np.eye(X.shape[0], dtype=int)
         return to_edge_index((torch.tensor(X, dtype=torch.float).to_sparse()))
 
-    threshold = 0.005
     if N_largest is not None:
         threshold = np.sort(np.triu(X).ravel())[-N_largest:].min()
+    else:
+        threshold = 0.005
 
     X[X < threshold] = 0
 
@@ -66,6 +68,20 @@ def get_class_weight(cls_y, n_classes=4):
     return torch.tensor(class_weights.sort_index().to_list(), dtype=torch.float)
 
 
+def get_chisq(surv_data, groups, mask=None):
+
+    if len(np.unique(groups)) == 1:
+        return 0, 1
+
+    if mask is not None:
+        surv_data = surv_data[mask]
+        groups = groups[mask]
+
+    chisq, pvalue, stats, covar = compare_survival(surv_data, groups, return_stats=True)
+
+    return chisq, pvalue
+
+
 def get_dataset(config, gt_df=None, latent_df=None, adj=None):
     if gt_df is None:
         # get surv_data
@@ -91,6 +107,7 @@ def get_dataset(config, gt_df=None, latent_df=None, adj=None):
 
     dataset.E = gt_df["Status"]
     dataset.T = gt_df["Survival_in_days"]
+    dataset.surv_data = gt_df[["Status", "Survival_in_days"]].to_records(index=False)
 
     dataset.class_labels = get_ordered_class_lables(gt_df)
     dataset.gt_labels = gt_df["Pam50 Subtype"]

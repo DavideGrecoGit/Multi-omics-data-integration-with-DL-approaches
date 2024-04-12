@@ -1,17 +1,17 @@
 {
     "seed": 42,
     "gt_path": "./data/gt_data.csv",
-    "train_path": "./data/train_pam50_stratified.csv",
-    "test_path": "./data/test_pam50_stratified.csv",
+    "train_path": "./data/train_strat_id.csv",
+    "test_path": "./data/test_strat_id.csv",
     "latent_path": "./data/latent_data.csv",
     "snf_path": "./data/snf_data.csv",
-    "k_fold_path": "./data/5_fold_cls/",
+    "k_fold_path": "./data/5_fold/",
     "n_kfolds": 5,
     "epochs": 150,
     "min_epochs": 10,
     "patience": 20,
     "cls_type": "MLP",
-    "n_edges": null,
+    "n_edges": 0,
     "batch_size": [
         32,
         64
@@ -45,12 +45,5 @@
         16,
         32,
         64
-    ],
-    "color_codes": {
-        "LumA": "tab:red",
-        "LumB": "tab:orange",
-        "Basal": "tab:blue",
-        "Her2": "tab:green",
-        "Normal": "tab:black"
-    }
+    ]
 }

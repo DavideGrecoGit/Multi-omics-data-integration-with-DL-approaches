@@ -7,8 +7,6 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 from torch_geometric.logging import log
 
-from utils.utils import EarlyStopper
-
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -16,6 +14,42 @@ def cross_entropy_loss(y_pred, y_true, weight=None, reduction="mean"):
     criterion = nn.CrossEntropyLoss(weight=weight, reduction=reduction)
 
     return criterion(y_pred, y_true)
+
+
+class EarlyStopper:
+    def __init__(self, min_epochs, patience=5, minimise=True):
+        self.min_epochs = min_epochs
+        self.patience = patience
+        self.best_value = 0
+        self.best_epoch = 0
+        self.best_metrics = None
+        self.best_model = None
+
+        if minimise:
+            self.best_value = float("inf")
+        self.minimise = minimise
+
+    def check(self, value, epoch, metrics, model):
+        if self.min_epochs >= epoch:
+            return False
+
+        if self.minimise:
+            if value < self.best_value:
+                self.best_value = value
+                self.best_epoch = epoch
+                self.best_metrics = metrics
+                self.best_model = model.state_dict()
+        else:
+            if value > self.best_value:
+                self.best_value = value
+                self.best_epoch = epoch
+                self.best_metrics = metrics
+                self.best_model = model.state_dict()
+
+        if (epoch - self.best_epoch) >= self.patience:
+            return True
+
+        return False
 
 
 class ClsBaseModel(nn.Module):
@@ -110,6 +144,8 @@ class ClsBaseModel(nn.Module):
             min_epochs=self.config["min_epochs"], patience=self.config["patience"]
         )
 
+        best_model = None
+
         for epoch in range(1, self.config["epochs"] + 1):
             self.train()
 
@@ -130,21 +166,23 @@ class ClsBaseModel(nn.Module):
                 )
 
             if (len(data.val_mask) > 0) and earlyStop.check(
-                val_loss, epoch, [val_acc, val_f1]
+                val_loss, epoch, [val_acc, val_f1], self
             ):
                 if verbose:
                     print(
                         f"Early stopped! Best metrics {earlyStop.best_metrics} at epoch {earlyStop.best_epoch}"
                     )
                 val_acc, val_f1 = earlyStop.best_metrics
+                best_model = earlyStop.best_model
+
                 break
 
-        return val_acc, val_f1, earlyStop.best_epoch
+        return best_model, val_acc, val_f1, earlyStop.best_epoch
 
     @torch.no_grad()
     def get_latent_space(self, data, save_path=None):
         self.eval()
-        _, latent = self.forward(data.x, data.edge_index, data.edge_attr)
+        latent, _ = self.forward(data.x, data.edge_index, data.edge_attr)
         latent = latent.cpu().numpy()
 
         if save_path:

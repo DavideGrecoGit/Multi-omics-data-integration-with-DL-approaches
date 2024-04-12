@@ -1,17 +1,23 @@
 import os
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from sklearn.manifold import TSNE
 from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
-from sksurv.compare import compare_survival
-from sksurv.linear_model import CoxPHSurvivalAnalysis
 from sksurv.nonparametric import kaplan_meier_estimator
+
+from utils.data import get_chisq
 
 
 def plot_pam50_latent_space(latent, pam_labels, config, save_path):
+    sns.set_theme(context="paper", style="white", font_scale=1.25)
+
+    idx = np.argsort(pam_labels)
+    latent = latent[idx]
+    pam_labels = pam_labels[idx]
     z = TSNE(n_components=2, random_state=config["seed"]).fit_transform(latent)
 
     sns_plot = sns.scatterplot(
@@ -19,20 +25,6 @@ def plot_pam50_latent_space(latent, pam_labels, config, save_path):
         y=z[:, 1],
         hue=pam_labels,
         palette=sns.color_palette("bright", n_colors=config["n_classes"]),
-    )
-
-    plt.savefig(save_path)
-    plt.close()
-
-
-def plot_surv_latent_space(latent, risk, config, save_path):
-    z = TSNE(n_components=2, random_state=config["seed"]).fit_transform(latent)
-
-    sns_plot = sns.scatterplot(
-        x=z[:, 0],
-        y=z[:, 1],
-        hue=risk,
-        palette=sns.color_palette("rocket_r", as_cmap=True),
     )
 
     plt.savefig(save_path)
@@ -48,7 +40,7 @@ def plot_confusion_matrix(y_true, pred, save_path, labels=None, normalize="true"
 
 def save_metrics(
     metrics,
-    save_dir,
+    save_path,
     columns=[
         "acc",
         "f1",
@@ -63,13 +55,13 @@ def save_metrics(
         columns=columns,
     )
 
-    df.to_csv(os.path.join(save_dir, "metrics.csv"), index=False)
+    df.to_csv(save_path, index=False)
 
 
 def save_mean_metrics(
     metrics,
-    save_dir,
-    columns=[
+    save_path,
+    metric_names=[
         "mean_acc",
         "sd_acc",
         "mean_f1",
@@ -85,93 +77,70 @@ def save_mean_metrics(
 
     print(f"Mean: {means}, SD: {stds}\n")
 
-    if (len(columns) / 2) > 1:
+    if len(metric_names) > 1:
         df = pd.DataFrame(
             [
                 np.array(
-                    [[means[i], stds[i]] for i in range((len(columns) // 2))]
+                    [[means[i], stds[i]] for i in range(len(metric_names))]
                 ).flatten()
             ],
-            columns=columns,
+            columns=np.array([[f"mean_{name}", f"std_{name}"] for name in metric_names])
+            .flatten()
+            .tolist(),
         )
     else:
         df = pd.DataFrame(
             [[means, stds]],
-            columns=columns,
+            columns=[metrics],
         )
 
-    df.to_csv(os.path.join(save_dir, "metrics.csv"), index=False)
+    df.to_csv(save_path, index=False)
 
 
-def plot_km(T, E, pam50, save_path, conf=False, labels=None):
+def plot_km(T, E, pam50=None, save_path=None, conf=False):
 
-    # if group_clm is None:
-    #     time, survival_prob, conf_int = kaplan_meier_estimator(
-    #         E, T, conf_type="log-log"
-    #     )
+    sns.set_theme(context="paper", style="dark", font_scale=1.25)
+    p = None
 
-    #     plt.step(time, survival_prob, where="post")
-    #     if conf:
-    #         plt.fill_between(time, conf_int[0], conf_int[1], alpha=0.25, step="post")
-    # else:
-    for group_type in np.unique(pam50):
-        mask = pam50 == group_type
-
-        time_treatment, survival_prob_treatment, conf_int = kaplan_meier_estimator(
-            E[mask],
-            T[mask],
-            conf_type="log-log",
-            conf_level=0.90,
+    if pam50 is None:
+        time, survival_prob, conf_int = kaplan_meier_estimator(
+            E, T // 365, conf_type="log-log"
         )
 
-        label = group_type
-        if labels is not None:
-            label = labels[group_type]
-
-        plt.step(
-            time_treatment,
-            survival_prob_treatment,
-            where="post",
-            label=f"{label}",
-        )
-        plt.legend(loc="best")
-
+        plt.step(time, survival_prob, where="post")
         if conf:
-            plt.fill_between(
-                time_treatment, conf_int[0], conf_int[1], alpha=0.25, step="post"
+            plt.fill_between(time, conf_int[0], conf_int[1], alpha=0.25, step="post")
+    else:
+        for group_type in np.unique(pam50):
+            mask = pam50 == group_type
+
+            time_treatment, survival_prob_treatment, conf_int = kaplan_meier_estimator(
+                E[mask],
+                T[mask] // 365,
+                conf_type="log-log",
+                conf_level=0.90,
             )
+            plt.step(
+                time_treatment,
+                survival_prob_treatment,
+                where="post",
+                label=f"{group_type}",
+            )
+            plt.legend(loc="upper right")
 
-    plt.ylim(0, 1)
-    plt.ylabel(r"est. Survival probability $\hat{S}(t)$")
-    plt.xlabel(r"Days $(t)$")
-    plt.title("Kaplan-Meier survival curve")
-    plt.savefig(save_path)
-    plt.close()
+            if conf:
+                plt.fill_between(
+                    time_treatment, conf_int[0], conf_int[1], alpha=0.25, step="post"
+                )
+        chi, p = get_chisq(pd.concat([E, T], axis=1).to_records(index=False), pam50)
 
+    plt.ylim(0, 1.05)
+    plt.ylabel(r"Survival probability ${S}(t)$")
+    plt.xlabel(r"Year $(t)$")
 
-def get_chisq(surv_data, groups, verbose=False, mask=None):
+    if p is not None:
+        plt.text(0, 0.1, f"p-value = {round(p,5)}", fontsize=11)
 
-    if len(np.unique(groups)) == 1:
-        return 0, 1
-
-    if mask is not None:
-        surv_data = surv_data[mask]
-        groups = groups[mask]
-
-    data_y = surv_data[["Status", "Survival_in_days"]].to_records(index=False)
-    chisq, pvalue, stats, covar = compare_survival(data_y, groups, return_stats=True)
-
-    if verbose:
-        print(f"Chi-square: {chisq}, P-value: {pvalue}")
-    return chisq, pvalue
-
-
-def get_c_index(latent, surv_data, train_mask, test_mask):
-    data_y = surv_data[["Status", "Survival_in_days"]].to_records(index=False)
-
-    estimator = CoxPHSurvivalAnalysis()
-    estimator.fit(latent[train_mask], data_y[train_mask])
-
-    c_index = estimator.score(latent[test_mask], data_y[test_mask])
-    print("\nC-index: ", c_index)
-    return c_index
+    if save_path is not None:
+        plt.savefig(save_path)
+        plt.close()

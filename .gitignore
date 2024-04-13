@@ -10,6 +10,18 @@ MOMT/data/original
 .vscode/
 .favorites.json
 
+MoGCN_Evaluation/data
+MoGCN_Evaluation/model
+Datasets/
+Models/
+prototype/checkpoints
+prototype/results
+Hyperparameters_tuning/results
+Hyperparameters_tuning/data
+*.pth
+*.db
+output/
+*.pdf
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

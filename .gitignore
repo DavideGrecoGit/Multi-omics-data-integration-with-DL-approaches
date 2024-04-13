@@ -1,3 +1,15 @@
+Datasets/
+Backup/
+Models/
+MOMT/results
+MOMT/data/original
+
+*.pth
+*.db
+*.pdf
+.vscode/
+.favorites.json
+
 MoGCN_Evaluation/data
 MoGCN_Evaluation/model
 Datasets/
